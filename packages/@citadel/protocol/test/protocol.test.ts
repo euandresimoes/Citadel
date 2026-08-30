@@ -4,6 +4,7 @@ import {
   CommandResultSchema,
   DeviceHeartbeatMessageSchema,
   DeviceHelloMessageSchema,
+  HubHelloMessageSchema,
   PROTOCOL_VERSION,
 } from "../src/index.js";
 
@@ -47,5 +48,16 @@ describe("Citadel protocol", () => {
         success: false,
       }).success,
     ).toBe(false);
+  });
+
+  it("accepts the hub handshake response", () => {
+    expect(
+      HubHelloMessageSchema.parse({
+        type: "hub.hello",
+        deviceId: "device-01",
+        protocolVersion: PROTOCOL_VERSION,
+        sessionId: "session-01",
+      }).type,
+    ).toBe("hub.hello");
   });
 });

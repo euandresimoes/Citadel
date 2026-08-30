@@ -457,6 +457,27 @@ Example response:
 
 Every request uses an identifier so the Hub can correlate commands with responses.
 
+## Connector handshake
+
+The Connector initiates the WebSocket connection and sends `device.hello` with
+its protocol version and metadata collected from the host operating system.
+The Realtime Service owns the connection and session lifecycle, validates the
+message, and responds with `hub.hello` containing the negotiated session ID.
+
+```text
+Connector                         Realtime Service
+    │                                      │
+    │──── device.hello ──────────────────▶│
+    │                                      │ validate + create session
+    │◀──── hub.hello ─────────────────────│
+    │                                      │
+    │──── device.heartbeat ──────────────▶│
+```
+
+The initial handshake is intentionally transport/session-oriented. Device
+persistence, pairing authorization, and command policy remain responsibilities
+of their respective Hub services and are not implemented by the Connector.
+
 ```text
 Command
 cmd_a84f1
@@ -667,7 +688,7 @@ Citadel/
 | Client API | GraphQL |
 | GraphQL Server | Mercurius |
 | Internal APIs | REST |
-| Realtime Communication | WebSocket |
+| Realtime Communication | WebSocket (`ws`) |
 | Validation | Zod |
 | Database | PostgreSQL |
 | Reverse Proxy | NGINX |

@@ -5,7 +5,7 @@
   "description": "Citadel self-hosted device control plane",
   "scripts": {
     "build": "pnpm -r build",
-    "typecheck": "pnpm -r typecheck",
+    "typecheck": "pnpm -r build && pnpm -r typecheck",
     "test": "pnpm -r test"
   },
   "keywords": [],
