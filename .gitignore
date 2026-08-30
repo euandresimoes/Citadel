@@ -1,0 +1,11 @@
+# Packages
+node_modules/
+dist/
+coverage/
+
+# Logs
+*.logs
+*.log
+
+# Local Files
+docs/RULES.md
