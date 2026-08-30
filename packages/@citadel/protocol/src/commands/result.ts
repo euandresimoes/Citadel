@@ -9,6 +9,7 @@ const CommandResultBaseSchema = z.object({
 export const CommandResultSchema = z.discriminatedUnion("success", [
   CommandResultBaseSchema.extend({
     success: z.literal(true),
+    data: z.unknown().optional(),
   }),
   CommandResultBaseSchema.extend({
     success: z.literal(false),

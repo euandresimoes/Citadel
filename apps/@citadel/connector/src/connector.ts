@@ -6,6 +6,8 @@ import {
   CitadelMessageSchema,
   DeviceHelloMessageSchema,
   PROTOCOL_VERSION,
+  type CitadelMessage,
+  SystemInfoSchema,
   type NetworkMode,
   type HubHelloMessage,
 } from "@citadel/protocol";
@@ -14,7 +16,7 @@ import {
   loadOrCreateIdentity,
   type IdentityStore,
 } from "./identity/identity.js";
-import { collectDeviceInfo } from "./system/device-info.js";
+import { collectDeviceInfo, collectSystemInfo } from "./system/device-info.js";
 
 export interface ConnectorOptions {
   url: string;
@@ -22,9 +24,20 @@ export interface ConnectorOptions {
   networkMode?: NetworkMode;
   heartbeatIntervalMs?: number;
   identityStore?: IdentityStore;
+  autoReconnect?: boolean;
+  reconnectInitialDelayMs?: number;
+  reconnectMaxDelayMs?: number;
+  tls?: {
+    ca?: string | Buffer;
+    cert?: string | Buffer;
+    key?: string | Buffer;
+    rejectUnauthorized?: boolean;
+  };
+  onMessage?: (message: CitadelMessage) => void;
 }
 
 interface EstablishedConnection {
+  url: string;
   socket: WebSocket;
   connectionId: string;
   networkMode: NetworkMode;
@@ -35,7 +48,12 @@ export class Connector {
   private socket: WebSocket | undefined;
   private connectionId: string | undefined;
   private networkMode: NetworkMode | undefined;
+  private activeUrl: string | undefined;
+  private activeNetworkMode: NetworkMode | undefined;
   private heartbeatTimer: NodeJS.Timeout | undefined;
+  private reconnectTimer: NodeJS.Timeout | undefined;
+  private reconnectDelayMs: number | undefined;
+  private stopped = true;
   private readonly identity;
 
   public constructor(private readonly options: ConnectorOptions) {
@@ -45,13 +63,16 @@ export class Connector {
 
   public connect(): Promise<HubHelloMessage> {
     if (this.socket) return Promise.reject(new Error("Connector is already connected"));
+    this.stopped = false;
     return this.establish(this.options.url, this.options.networkMode ?? "lan").then((connection) => {
+      this.reconnectDelayMs = this.options.reconnectInitialDelayMs ?? 250;
       this.activate(connection);
       return connection.hello;
     });
   }
 
   public switchNetwork(url: string, networkMode: NetworkMode): Promise<HubHelloMessage> {
+    this.stopped = false;
     return this.establish(url, networkMode).then((connection) => {
       const previousSocket = this.socket;
       this.stopHeartbeat();
@@ -62,16 +83,21 @@ export class Connector {
   }
 
   public close(): void {
+    this.stopped = true;
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = undefined;
     this.stopHeartbeat();
     this.socket?.close();
     this.socket = undefined;
     this.connectionId = undefined;
     this.networkMode = undefined;
+    this.activeUrl = undefined;
+    this.activeNetworkMode = undefined;
   }
 
   private establish(url: string, networkMode: NetworkMode): Promise<EstablishedConnection> {
     return new Promise((resolve, reject) => {
-      const socket = new WebSocket(url);
+      const socket = new WebSocket(url, this.options.tls);
       const connectionId = createConnectorConnectionId();
       let settled = false;
 
@@ -109,6 +135,7 @@ export class Connector {
           fail(new Error("Hub sent an invalid protocol message"));
           return;
         }
+        this.options.onMessage?.(parsed.data);
         if (parsed.data.type === "protocol.error") {
           fail(new Error(parsed.data.message));
           return;
@@ -135,13 +162,23 @@ export class Connector {
           }));
           return;
         }
+        if (parsed.data.type === "device.system.info.request") {
+          if (parsed.data.deviceId !== this.options.deviceId) return;
+          socket.send(JSON.stringify({
+            type: "command.result",
+            commandId: parsed.data.id,
+            success: true,
+            data: SystemInfoSchema.parse(collectSystemInfo()),
+          }));
+          return;
+        }
         if (parsed.data.type !== "hub.hello") return;
         if (parsed.data.connectionId !== connectionId || parsed.data.networkMode !== networkMode) {
           fail(new Error("Hub handshake does not match the active connection"));
           return;
         }
         settled = true;
-        resolve({ socket, connectionId, networkMode, hello: parsed.data });
+        resolve({ url, socket, connectionId, networkMode, hello: parsed.data });
       });
     });
   }
@@ -150,7 +187,36 @@ export class Connector {
     this.socket = connection.socket;
     this.connectionId = connection.connectionId;
     this.networkMode = connection.networkMode;
+    this.activeUrl = connection.url;
+    this.activeNetworkMode = connection.networkMode;
+    connection.socket.on("close", () => {
+      if (this.socket !== connection.socket || this.stopped) return;
+      this.stopHeartbeat();
+      this.socket = undefined;
+      this.connectionId = undefined;
+      this.networkMode = undefined;
+      this.scheduleReconnect();
+    });
     this.startHeartbeat();
+  }
+
+  private scheduleReconnect(): void {
+    if (this.options.autoReconnect === false || this.reconnectTimer || this.stopped) return;
+    const delay = this.reconnectDelayMs ?? this.options.reconnectInitialDelayMs ?? 250;
+    const maxDelay = this.options.reconnectMaxDelayMs ?? 30_000;
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = undefined;
+      void this.establish(this.activeUrl ?? this.options.url, this.activeNetworkMode ?? this.options.networkMode ?? "lan")
+        .then((connection) => {
+          this.reconnectDelayMs = this.options.reconnectInitialDelayMs ?? 250;
+          this.activate(connection);
+        })
+        .catch(() => {
+          this.reconnectDelayMs = Math.min(delay * 2, maxDelay);
+          this.scheduleReconnect();
+        });
+    }, delay);
+    this.reconnectTimer.unref();
   }
 
   private startHeartbeat(): void {

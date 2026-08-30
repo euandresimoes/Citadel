@@ -8,4 +8,5 @@ export interface NetworkEndpoint {
 export interface NetworkProvider {
   readonly mode: NetworkMode;
   discover(): Promise<NetworkEndpoint[]>;
+  isAvailable(): Promise<boolean>;
 }

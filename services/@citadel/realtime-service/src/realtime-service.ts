@@ -1,18 +1,24 @@
 import { createPublicKey, randomBytes, randomUUID, verify } from "node:crypto";
+import { createServer as createHttpsServer } from "node:https";
+import type { Server } from "node:https";
 import {
   CitadelMessageSchema,
   PROTOCOL_VERSION,
   type DeviceAuthMessage,
+  type CitadelMessage,
   type DeviceHelloMessage,
+  type Command,
   type NetworkMode,
 } from "@citadel/protocol";
 import type { PairingAuthorizer } from "@citadel/device-service";
-import { WebSocketServer, type WebSocket } from "ws";
+import WebSocket, { WebSocketServer, type WebSocket as WebSocketConnection } from "ws";
 
 export interface RealtimeServiceOptions {
   host?: string;
   port: number;
   pairing: PairingAuthorizer;
+  tls?: { key: string | Buffer; cert: string | Buffer };
+  onMessage?: (deviceId: string, message: CitadelMessage) => void;
 }
 
 export interface DeviceSession {
@@ -22,25 +28,39 @@ export interface DeviceSession {
   sessionId: string;
   connectedAt: Date;
   lastHeartbeat: Date;
-  socket: WebSocket;
+  socket: WebSocketConnection;
 }
 
 export class RealtimeService {
   private readonly server: WebSocketServer;
+  private readonly listener: Server | undefined;
   private readonly sessions = new Map<string, DeviceSession>();
+  private readonly pairing: PairingAuthorizer;
+  private readonly onMessage: RealtimeServiceOptions["onMessage"];
 
   public constructor(options: RealtimeServiceOptions) {
     this.pairing = options.pairing;
-    this.server = new WebSocketServer({
-      host: options.host ?? "127.0.0.1",
-      port: options.port,
-    });
+    this.onMessage = options.onMessage;
+    if (options.tls) {
+      this.listener = createHttpsServer(options.tls);
+      this.server = new WebSocketServer({ server: this.listener });
+      this.listener.listen(options.port, options.host ?? "127.0.0.1");
+    } else {
+      this.listener = undefined;
+      this.server = new WebSocketServer({ host: options.host ?? "127.0.0.1", port: options.port });
+    }
     this.server.on("connection", (socket) => this.handleConnection(socket));
   }
 
-  private readonly pairing: PairingAuthorizer;
-
   public async ready(): Promise<void> {
+    if (this.listener) {
+      if (this.listener.listening) return;
+      await new Promise<void>((resolve, reject) => {
+        this.listener?.once("listening", resolve);
+        this.listener?.once("error", reject);
+      });
+      return;
+    }
     if (this.server.address()) return;
     await new Promise<void>((resolve, reject) => {
       const onListening = (): void => {
@@ -57,7 +77,7 @@ export class RealtimeService {
   }
 
   public port(): number {
-    const address = this.server.address();
+    const address = this.listener ? this.listener.address() : this.server.address();
     if (!address || typeof address === "string") throw new Error("Service is not listening");
     return address.port;
   }
@@ -66,15 +86,23 @@ export class RealtimeService {
     return this.sessions.get(deviceId);
   }
 
+  public sendCommand(deviceId: string, command: Command): boolean {
+    const session = this.sessions.get(deviceId);
+    if (!session || session.socket.readyState !== WebSocket.OPEN) return false;
+    session.socket.send(JSON.stringify(command));
+    return true;
+  }
+
   public async close(): Promise<void> {
     for (const session of this.sessions.values()) session.socket.close();
     this.sessions.clear();
     await new Promise<void>((resolve, reject) => {
-      this.server.close((error) => (error ? reject(error) : resolve()));
+      const close = this.listener ?? this.server;
+      close.close((error) => (error ? reject(error) : resolve()));
     });
   }
 
-  private handleConnection(socket: WebSocket): void {
+  private handleConnection(socket: WebSocketConnection): void {
     let handshaken = false;
     let authenticated = false;
     let pendingAuthentication: { hello: DeviceHelloMessage; nonce: string } | undefined;
@@ -133,6 +161,8 @@ export class RealtimeService {
           session.lastHeartbeat = new Date(parsed.data.timestamp);
         }
       }
+      const activeSession = [...this.sessions.values()].find((session) => session.socket === socket);
+      if (activeSession) this.onMessage?.(activeSession.deviceId, parsed.data);
     });
 
     socket.on("close", () => {
@@ -143,7 +173,7 @@ export class RealtimeService {
     });
   }
 
-  private async beginAuthentication(socket: WebSocket, hello: DeviceHelloMessage): Promise<{ hello: DeviceHelloMessage; nonce: string } | undefined> {
+  private async beginAuthentication(socket: WebSocketConnection, hello: DeviceHelloMessage): Promise<{ hello: DeviceHelloMessage; nonce: string } | undefined> {
     if (hello.protocolVersion !== PROTOCOL_VERSION) {
       this.sendError(socket, "protocol.unsupported_version", "Unsupported protocol version");
       socket.close(1002, "Unsupported protocol version");
@@ -185,7 +215,7 @@ export class RealtimeService {
     }
   }
 
-  private activateDevice(socket: WebSocket, hello: DeviceHelloMessage): void {
+  private activateDevice(socket: WebSocketConnection, hello: DeviceHelloMessage): void {
 
     const previousSession = this.sessions.get(hello.deviceId);
     const session: DeviceSession = {
@@ -209,7 +239,7 @@ export class RealtimeService {
     previousSession?.socket.close(1000, "Replaced by a newer network connection");
   }
 
-  private sendError(socket: WebSocket, code: "protocol.invalid_message" | "protocol.unsupported_version" | "protocol.unauthorized", message: string): void {
+  private sendError(socket: WebSocketConnection, code: "protocol.invalid_message" | "protocol.unsupported_version" | "protocol.unauthorized", message: string): void {
     socket.send(JSON.stringify({ type: "protocol.error", code, message }));
   }
 }

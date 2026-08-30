@@ -42,4 +42,39 @@ describe("Connector handshake", () => {
     connector.close();
     await new Promise<void>((resolve) => server.close(() => resolve()));
   });
+
+  it("reconnects with backoff after an established connection drops", async () => {
+    const server = new WebSocketServer({ port: 0 });
+    let connections = 0;
+    server.on("connection", (socket) => {
+      connections += 1;
+      socket.once("message", (raw) => {
+        const hello = JSON.parse(raw.toString()) as { deviceId: string; connectionId: string; networkMode: string };
+        socket.send(JSON.stringify({
+          type: "hub.hello",
+          deviceId: hello.deviceId,
+          connectionId: hello.connectionId,
+          networkMode: hello.networkMode,
+          protocolVersion: 1,
+          sessionId: `session-${connections}`,
+        }));
+        if (connections === 1) setTimeout(() => socket.close(), 25);
+      });
+    });
+    await new Promise<void>((resolve) => server.once("listening", resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("Test server did not start");
+
+    const connector = new Connector({
+      url: `ws://127.0.0.1:${address.port}`,
+      deviceId: "device-reconnect",
+      reconnectInitialDelayMs: 10,
+      identityStore: new MemoryIdentityStore(),
+    });
+    await connector.connect();
+    await expect.poll(() => connections, { timeout: 2_000 }).toBeGreaterThanOrEqual(2);
+
+    connector.close();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }, 5_000);
 });

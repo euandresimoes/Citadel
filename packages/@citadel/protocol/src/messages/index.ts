@@ -4,6 +4,7 @@ import {
   RestartCommandSchema,
   ShutdownCommandSchema,
   SleepCommandSchema,
+  SystemInfoCommandSchema,
 } from "../commands/index.js";
 import { DeviceHelloMessageSchema } from "./device-hello.js";
 import { DeviceHeartbeatMessageSchema } from "./device-heartbeat.js";
@@ -32,6 +33,7 @@ export const CitadelMessageSchema = z.discriminatedUnion("type", [
   RestartCommandSchema,
   ShutdownCommandSchema,
   SleepCommandSchema,
+  SystemInfoCommandSchema,
   CommandResultSchema,
 ]);
 

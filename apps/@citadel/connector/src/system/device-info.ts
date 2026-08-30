@@ -1,5 +1,5 @@
 import os from "node:os";
-import type { DeviceInfo } from "@citadel/protocol";
+import type { DeviceInfo, SystemInfo } from "@citadel/protocol";
 
 export function collectDeviceInfo(): DeviceInfo {
   const platform = os.platform();
@@ -28,5 +28,17 @@ export function collectDeviceInfo(): DeviceInfo {
       "permission.system.info.read",
       "permission.system.metrics.read",
     ],
+  };
+}
+
+export function collectSystemInfo(): SystemInfo {
+  const device = collectDeviceInfo();
+  return {
+    hostname: device.hostname,
+    platform: device.platform,
+    architecture: device.architecture,
+    cpuCount: os.cpus().length,
+    memoryBytes: os.totalmem(),
+    uptimeSeconds: Math.floor(os.uptime()),
   };
 }

@@ -495,6 +495,14 @@ a user-requested network change, the Connector establishes and validates the
 new connection before closing the old one. The Realtime Service replaces the
 active session only after the new handshake succeeds.
 
+The Connector reconnects automatically after an established connection drops,
+using exponential backoff. The Realtime Service can be configured with TLS
+certificates so both LAN and Headscale connections use `wss://` in production.
+
+After authentication, the Hub can request `device.system.info.request`. The
+Connector executes the read-only system inspection locally and returns a
+`command.result` correlated by `commandId`.
+
 ```text
 Command
 cmd_a84f1
