@@ -82,7 +82,7 @@ export class RealtimeService {
       if (!handshaken) socket.close(1008, "Handshake timeout");
     }, 5_000);
 
-    socket.on("message", (raw) => {
+    socket.on("message", async (raw) => {
       let message: unknown;
       try {
         message = JSON.parse(raw.toString());
@@ -103,7 +103,7 @@ export class RealtimeService {
           socket.close(1002, "Handshake required");
           return;
         }
-        pendingAuthentication = this.beginAuthentication(socket, parsed.data);
+        pendingAuthentication = await this.beginAuthentication(socket, parsed.data);
         if (pendingAuthentication) {
           handshaken = true;
           clearTimeout(handshakeTimeout);
@@ -143,15 +143,15 @@ export class RealtimeService {
     });
   }
 
-  private beginAuthentication(socket: WebSocket, hello: DeviceHelloMessage): { hello: DeviceHelloMessage; nonce: string } | undefined {
+  private async beginAuthentication(socket: WebSocket, hello: DeviceHelloMessage): Promise<{ hello: DeviceHelloMessage; nonce: string } | undefined> {
     if (hello.protocolVersion !== PROTOCOL_VERSION) {
       this.sendError(socket, "protocol.unsupported_version", "Unsupported protocol version");
       socket.close(1002, "Unsupported protocol version");
       return undefined;
     }
 
-    if (!this.pairing.authorize(hello.deviceId, hello.identity)) {
-      const request = this.pairing.requestPairing(hello.deviceId, hello.identity);
+    if (!(await this.pairing.authorize(hello.deviceId, hello.identity))) {
+      const request = await this.pairing.requestPairing(hello.deviceId, hello.identity);
       socket.send(JSON.stringify({
         type: "pairing.pending",
         requestId: request.requestId,

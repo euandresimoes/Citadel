@@ -18,9 +18,9 @@ describe("RealtimeService", () => {
       identityStore,
     });
     await expect(connector.connect()).rejects.toBeInstanceOf(PairingRequiredError);
-    const request = pairing.listPending()[0];
+    const request = (await pairing.listPending())[0];
     if (!request) throw new Error("Pairing request was not created");
-    pairing.approve(request.requestId);
+    await pairing.approve(request.requestId);
     const response = await connector.connect();
 
     expect(response.type).toBe("hub.hello");
@@ -37,8 +37,8 @@ describe("RealtimeService", () => {
     const pairing = new InMemoryPairingService();
     const identityStore = new MemoryIdentityStore();
     const identity = loadOrCreateIdentity(identityStore).identity;
-    const request = pairing.requestPairing("device-handoff", identity);
-    pairing.approve(request.requestId);
+    const request = await pairing.requestPairing("device-handoff", identity);
+    await pairing.approve(request.requestId);
     const service = new RealtimeService({ port: 0, pairing });
     await service.ready();
     const connector = new Connector({

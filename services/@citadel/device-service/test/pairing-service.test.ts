@@ -8,12 +8,12 @@ const identity = {
 };
 
 describe("InMemoryPairingService", () => {
-  it("requires manual approval before authorizing an identity", () => {
+  it("requires manual approval before authorizing an identity", async () => {
     const pairing = new InMemoryPairingService();
-    const request = pairing.requestPairing("device-01", identity);
+    const request = await pairing.requestPairing("device-01", identity);
 
-    expect(pairing.authorize("device-01", identity)).toBe(false);
-    pairing.approve(request.requestId);
-    expect(pairing.authorize("device-01", identity)).toBe(true);
+    await expect(pairing.authorize("device-01", identity)).resolves.toBe(false);
+    await pairing.approve(request.requestId);
+    await expect(pairing.authorize("device-01", identity)).resolves.toBe(true);
   });
 });

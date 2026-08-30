@@ -157,6 +157,10 @@ By default, the dashboard is intended to run locally at:
 http://localhost:75523
 ```
 
+Pairing state and registered device identities are persisted by the Device
+Service in PostgreSQL. The Realtime Service consumes the Device Service pairing
+authorization contract and does not access the database directly.
+
 ---
 
 ## Connector
@@ -320,6 +324,9 @@ Responsibilities include:
 - Network interfaces
 - MAC addresses
 - Last seen information
+
+Pairing records are stored in PostgreSQL and retain their lifecycle state:
+`pending`, `paired`, `rejected`, or `revoked`.
 
 Example internal endpoints:
 
