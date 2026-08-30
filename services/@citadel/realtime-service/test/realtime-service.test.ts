@@ -1,17 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { Connector } from "../../../../apps/@citadel/connector/src/index.js";
+import { Connector, MemoryIdentityStore, PairingRequiredError, loadOrCreateIdentity } from "../../../../apps/@citadel/connector/src/index.js";
+import { InMemoryPairingService } from "@citadel/device-service";
 import { RealtimeService } from "../src/index.js";
 
 describe("RealtimeService", () => {
   it("completes a real Connector handshake and creates a session", async () => {
-    const service = new RealtimeService({ port: 0 });
+    const pairing = new InMemoryPairingService();
+    const identityStore = new MemoryIdentityStore();
+    const identity = loadOrCreateIdentity(identityStore).identity;
+    const service = new RealtimeService({ port: 0, pairing });
     await service.ready();
 
     const connector = new Connector({
       url: `ws://127.0.0.1:${service.port()}`,
       deviceId: "device-e2e",
       heartbeatIntervalMs: 10,
+      identityStore,
     });
+    await expect(connector.connect()).rejects.toBeInstanceOf(PairingRequiredError);
+    const request = pairing.listPending()[0];
+    if (!request) throw new Error("Pairing request was not created");
+    pairing.approve(request.requestId);
     const response = await connector.connect();
 
     expect(response.type).toBe("hub.hello");
@@ -25,12 +34,18 @@ describe("RealtimeService", () => {
   });
 
   it("performs a controlled handoff between network modes", async () => {
-    const service = new RealtimeService({ port: 0 });
+    const pairing = new InMemoryPairingService();
+    const identityStore = new MemoryIdentityStore();
+    const identity = loadOrCreateIdentity(identityStore).identity;
+    const request = pairing.requestPairing("device-handoff", identity);
+    pairing.approve(request.requestId);
+    const service = new RealtimeService({ port: 0, pairing });
     await service.ready();
     const connector = new Connector({
       url: `ws://127.0.0.1:${service.port()}`,
       deviceId: "device-handoff",
       networkMode: "lan",
+      identityStore,
     });
 
     const first = await connector.connect();

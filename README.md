@@ -474,6 +474,11 @@ Connector                         Realtime Service
     │──── device.heartbeat ──────────────▶│
 ```
 
+Pairing is mandatory before a device can create a session. An unknown
+Connector receives `pairing.pending` and is disconnected. After manual approval
+in the Device Service, the Connector reconnects and proves possession of its
+Ed25519 private key through a `hub.challenge` / `device.auth` exchange.
+
 The initial handshake is intentionally transport/session-oriented. Device
 persistence, pairing authorization, and command policy remain responsibilities
 of their respective Hub services and are not implemented by the Connector.
@@ -840,6 +845,9 @@ Citadel provides remote control capabilities over connected devices, which makes
 The project is being designed around principles such as:
 
 - Explicit device pairing
+- Ed25519 device identities
+- Mandatory manual pairing approval
+- Challenge-response authentication
 - Unique device identities
 - Runtime message validation
 - Capability-based access

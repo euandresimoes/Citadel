@@ -1,5 +1,5 @@
 {
-  "name": "@citadel/realtime-service",
+  "name": "@citadel/device-service",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -17,13 +17,10 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@citadel/device-service": "workspace:*",
-    "@citadel/protocol": "workspace:*",
-    "ws": "^8.18.3"
+    "@citadel/protocol": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.15.29",
-    "@types/ws": "^8.18.1",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"
   }

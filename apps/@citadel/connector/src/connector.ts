@@ -1,4 +1,6 @@
-import { randomUUID } from "node:crypto";
+import { createPrivateKey, randomUUID, sign } from "node:crypto";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import WebSocket from "ws";
 import {
   CitadelMessageSchema,
@@ -7,6 +9,11 @@ import {
   type NetworkMode,
   type HubHelloMessage,
 } from "@citadel/protocol";
+import {
+  FileIdentityStore,
+  loadOrCreateIdentity,
+  type IdentityStore,
+} from "./identity/identity.js";
 import { collectDeviceInfo } from "./system/device-info.js";
 
 export interface ConnectorOptions {
@@ -14,6 +21,7 @@ export interface ConnectorOptions {
   deviceId: string;
   networkMode?: NetworkMode;
   heartbeatIntervalMs?: number;
+  identityStore?: IdentityStore;
 }
 
 interface EstablishedConnection {
@@ -28,8 +36,12 @@ export class Connector {
   private connectionId: string | undefined;
   private networkMode: NetworkMode | undefined;
   private heartbeatTimer: NodeJS.Timeout | undefined;
+  private readonly identity;
 
-  public constructor(private readonly options: ConnectorOptions) {}
+  public constructor(private readonly options: ConnectorOptions) {
+    const store = options.identityStore ?? new FileIdentityStore(join(homedir(), ".citadel", "identity.json"));
+    this.identity = loadOrCreateIdentity(store);
+  }
 
   public connect(): Promise<HubHelloMessage> {
     if (this.socket) return Promise.reject(new Error("Connector is already connected"));
@@ -78,6 +90,7 @@ export class Connector {
           connectionId,
           networkMode,
           protocolVersion: PROTOCOL_VERSION,
+          identity: this.identity.identity,
           device: collectDeviceInfo(),
         })));
       });
@@ -98,6 +111,28 @@ export class Connector {
         }
         if (parsed.data.type === "protocol.error") {
           fail(new Error(parsed.data.message));
+          return;
+        }
+        if (parsed.data.type === "pairing.pending") {
+          fail(new PairingRequiredError(parsed.data.requestId, parsed.data.identity.fingerprint));
+          return;
+        }
+        if (parsed.data.type === "hub.challenge") {
+          if (parsed.data.connectionId !== connectionId) {
+            fail(new Error("Hub challenge does not match the active connection"));
+            return;
+          }
+          const privateKey = createPrivateKey({
+            key: Buffer.from(this.identity.privateKey, "base64"),
+            format: "der",
+            type: "pkcs8",
+          });
+          const signature = sign(null, Buffer.from(parsed.data.nonce, "base64url"), privateKey);
+          socket.send(JSON.stringify({
+            type: "device.auth",
+            connectionId,
+            signature: signature.toString("base64"),
+          }));
           return;
         }
         if (parsed.data.type !== "hub.hello") return;
@@ -142,4 +177,14 @@ export class Connector {
 
 export function createConnectorConnectionId(): string {
   return randomUUID();
+}
+
+export class PairingRequiredError extends Error {
+  public constructor(
+    public readonly requestId: string,
+    public readonly fingerprint: string,
+  ) {
+    super(`Connector pairing is required for identity ${fingerprint}`);
+    this.name = "PairingRequiredError";
+  }
 }

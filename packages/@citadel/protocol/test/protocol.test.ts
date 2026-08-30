@@ -6,6 +6,7 @@ import {
   DeviceHelloMessageSchema,
   HubHelloMessageSchema,
   PROTOCOL_VERSION,
+  PairingPendingMessageSchema,
 } from "../src/index.js";
 
 describe("Citadel protocol", () => {
@@ -16,6 +17,11 @@ describe("Citadel protocol", () => {
       connectionId: "connection-01",
       networkMode: "lan",
       protocolVersion: PROTOCOL_VERSION,
+      identity: {
+        algorithm: "ed25519",
+        publicKey: "public-key",
+        fingerprint: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      },
       device: {
         hostname: "workstation",
         platform: "device.platform.windows",
@@ -64,5 +70,20 @@ describe("Citadel protocol", () => {
         sessionId: "session-01",
       }).type,
     ).toBe("hub.hello");
+  });
+
+  it("accepts a pending pairing notification", () => {
+    expect(
+      PairingPendingMessageSchema.parse({
+        type: "pairing.pending",
+        requestId: "request-01",
+        deviceId: "device-01",
+        identity: {
+          algorithm: "ed25519",
+          publicKey: "public-key",
+          fingerprint: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        },
+      }).type,
+    ).toBe("pairing.pending");
   });
 });

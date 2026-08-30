@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ConnectionIdSchema, DeviceIdSchema, NetworkModeSchema, ProtocolVersionSchema } from "../common/index.js";
+import { ConnectionIdSchema, DeviceIdSchema, DeviceIdentitySchema, NetworkModeSchema, ProtocolVersionSchema } from "../common/index.js";
 import { DeviceInfoSchema } from "../devices/index.js";
 
 export const DeviceHelloMessageSchema = z
@@ -9,6 +9,7 @@ export const DeviceHelloMessageSchema = z
     connectionId: ConnectionIdSchema,
     networkMode: NetworkModeSchema,
     protocolVersion: ProtocolVersionSchema,
+    identity: DeviceIdentitySchema,
     device: DeviceInfoSchema,
   })
   .strict();

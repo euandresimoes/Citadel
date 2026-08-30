@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { WebSocketServer } from "ws";
 import { Connector } from "../src/index.js";
+import { MemoryIdentityStore } from "../src/index.js";
 
 describe("Connector handshake", () => {
   it("collects real host metadata and completes a WebSocket handshake", async () => {
@@ -31,6 +32,7 @@ describe("Connector handshake", () => {
       url: `ws://127.0.0.1:${address.port}`,
       deviceId: "device-test",
       heartbeatIntervalMs: 10,
+      identityStore: new MemoryIdentityStore(),
     });
     const handshake = await connector.connect();
 
