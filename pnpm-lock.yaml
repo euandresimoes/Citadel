@@ -84,6 +84,31 @@ importers:
         specifier: ^3.2.4
         version: 3.2.7(@types/node@22.20.1)
 
+  services/@citadel/hub-service:
+    dependencies:
+      '@citadel/protocol':
+        specifier: workspace:*
+        version: link:../../../packages/@citadel/protocol
+    devDependencies:
+      '@citadel/connector':
+        specifier: workspace:*
+        version: link:../../../apps/@citadel/connector
+      '@citadel/device-service':
+        specifier: workspace:*
+        version: link:../device-service
+      '@citadel/realtime-service':
+        specifier: workspace:*
+        version: link:../realtime-service
+      '@types/node':
+        specifier: ^22.15.29
+        version: 22.20.1
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@22.20.1)
+
   services/@citadel/realtime-service:
     dependencies:
       '@citadel/device-service':

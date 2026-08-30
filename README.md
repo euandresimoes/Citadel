@@ -157,6 +157,13 @@ By default, the dashboard is intended to run locally at:
 http://localhost:75523
 ```
 
+The Hub Application Service coordinates command authorization and dispatch. A
+power command is never sent directly when requested: it first enters
+`awaiting_confirmation`, then the authenticated actor must explicitly confirm
+it. After dispatch, the result received from the matching device moves the
+command to `succeeded` or `failed`; unconfirmed commands become `expired` when
+their confirmation TTL is reached and their state is evaluated.
+
 Pairing state and registered device identities are persisted by the Device
 Service in PostgreSQL. The Realtime Service consumes the Device Service pairing
 authorization contract and does not access the database directly.
