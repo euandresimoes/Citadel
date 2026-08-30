@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { WebSocketServer } from "ws";
-import { Connector } from "../src/index.js";
-import { MemoryIdentityStore } from "../src/index.js";
+import { Connector, MemoryIdentityStore, type PowerCommandExecutor } from "../src/index.js";
 
 describe("Connector handshake", () => {
   it("collects real host metadata and completes a WebSocket handshake", async () => {
@@ -77,4 +76,63 @@ describe("Connector handshake", () => {
     connector.close();
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }, 5_000);
+
+  it("executes authenticated power commands and rejects command replay", async () => {
+    const server = new WebSocketServer({ port: 0 });
+    let serverSocket: import("ws").WebSocket | undefined;
+    server.on("connection", (socket) => {
+      serverSocket = socket;
+      socket.once("message", (raw) => {
+        const hello = JSON.parse(raw.toString()) as { deviceId: string; connectionId: string; networkMode: string };
+        socket.send(JSON.stringify({
+          type: "hub.hello",
+          deviceId: hello.deviceId,
+          connectionId: hello.connectionId,
+          networkMode: hello.networkMode,
+          protocolVersion: 1,
+          sessionId: "session-power",
+        }));
+      });
+    });
+    await new Promise<void>((resolve) => server.once("listening", resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("Test server did not start");
+
+    const executed: string[] = [];
+    const powerExecutor: PowerCommandExecutor = {
+      execute: async (commandType) => { executed.push(commandType); },
+    };
+    const connector = new Connector({
+      url: `ws://127.0.0.1:${address.port}`,
+      deviceId: "device-power",
+      identityStore: new MemoryIdentityStore(),
+      powerExecutor,
+    });
+    await connector.connect();
+
+    const resultPromise = new Promise<Record<string, unknown>>((resolve) => {
+      serverSocket?.on("message", (raw) => {
+        const message = JSON.parse(raw.toString()) as Record<string, unknown>;
+        if (message.type === "command.result") resolve(message);
+      });
+    });
+    const command = {
+      type: "device.system.power.restart",
+      id: "power-command-01",
+      deviceId: "device-power",
+    };
+    serverSocket?.send(JSON.stringify(command));
+    await expect(resultPromise).resolves.toMatchObject({ commandId: command.id, success: true });
+    expect(executed).toEqual([command.type]);
+
+    const replayPromise = new Promise<Record<string, unknown>>((resolve) => {
+      serverSocket?.once("message", (raw) => resolve(JSON.parse(raw.toString()) as Record<string, unknown>));
+    });
+    serverSocket?.send(JSON.stringify(command));
+    await expect(replayPromise).resolves.toMatchObject({ commandId: command.id, success: false });
+    expect(executed).toEqual([command.type]);
+
+    connector.close();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  });
 });

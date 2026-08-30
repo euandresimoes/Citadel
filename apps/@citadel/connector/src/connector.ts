@@ -17,6 +17,7 @@ import {
   type IdentityStore,
 } from "./identity/identity.js";
 import { collectDeviceInfo, collectSystemInfo } from "./system/device-info.js";
+import { createPowerCommandExecutor, type PowerCommandExecutor, type PowerCommandType } from "./power/index.js";
 
 export interface ConnectorOptions {
   url: string;
@@ -34,6 +35,8 @@ export interface ConnectorOptions {
     rejectUnauthorized?: boolean;
   };
   onMessage?: (message: CitadelMessage) => void;
+  powerExecutor?: PowerCommandExecutor;
+  processedCommandLimit?: number;
 }
 
 interface EstablishedConnection {
@@ -55,10 +58,14 @@ export class Connector {
   private reconnectDelayMs: number | undefined;
   private stopped = true;
   private readonly identity;
+  private readonly powerExecutor: PowerCommandExecutor;
+  private readonly processedCommandIds = new Set<string>();
+  private readonly inFlightCommandIds = new Set<string>();
 
   public constructor(private readonly options: ConnectorOptions) {
     const store = options.identityStore ?? new FileIdentityStore(join(homedir(), ".citadel", "identity.json"));
     this.identity = loadOrCreateIdentity(store);
+    this.powerExecutor = options.powerExecutor ?? createPowerCommandExecutor();
   }
 
   public connect(): Promise<HubHelloMessage> {
@@ -163,13 +170,15 @@ export class Connector {
           return;
         }
         if (parsed.data.type === "device.system.info.request") {
+          if (!settled) return;
           if (parsed.data.deviceId !== this.options.deviceId) return;
-          socket.send(JSON.stringify({
-            type: "command.result",
-            commandId: parsed.data.id,
-            success: true,
-            data: SystemInfoSchema.parse(collectSystemInfo()),
-          }));
+          this.sendCommandResult(socket, parsed.data.id, async () => SystemInfoSchema.parse(collectSystemInfo()));
+          return;
+        }
+        if (isPowerCommand(parsed.data)) {
+          if (!settled) return;
+          if (parsed.data.deviceId !== this.options.deviceId) return;
+          this.sendCommandResult(socket, parsed.data.id, () => this.powerExecutor.execute(parsed.data.type as PowerCommandType));
           return;
         }
         if (parsed.data.type !== "hub.hello") return;
@@ -239,6 +248,42 @@ export class Connector {
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
     this.heartbeatTimer = undefined;
   }
+
+  private sendCommandResult(socket: WebSocket, commandId: string, execute: () => Promise<unknown>): void {
+    const limit = this.options.processedCommandLimit ?? 1_000;
+    if (this.processedCommandIds.has(commandId) || this.inFlightCommandIds.has(commandId)) {
+      socket.send(JSON.stringify({ type: "command.result", commandId, success: false, error: "Command was already processed" }));
+      return;
+    }
+    this.inFlightCommandIds.add(commandId);
+    void execute()
+      .then((data) => this.sendResult(socket, { type: "command.result", commandId, success: true, ...(data === undefined ? {} : { data }) }))
+      .catch((error: unknown) => this.sendResult(socket, {
+        type: "command.result",
+        commandId,
+        success: false,
+        error: error instanceof Error ? error.message : "Command execution failed",
+      }))
+      .finally(() => {
+        this.inFlightCommandIds.delete(commandId);
+        this.processedCommandIds.add(commandId);
+        while (this.processedCommandIds.size > limit) {
+          const oldest = this.processedCommandIds.values().next().value as string | undefined;
+          if (!oldest) break;
+          this.processedCommandIds.delete(oldest);
+        }
+      });
+  }
+
+  private sendResult(socket: WebSocket, result: Record<string, unknown>): void {
+    if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(result));
+  }
+}
+
+function isPowerCommand(message: CitadelMessage): message is CitadelMessage & { id: string; deviceId: string; type: "device.system.power.sleep" | "device.system.power.restart" | "device.system.power.shutdown" } {
+  return message.type === "device.system.power.sleep"
+    || message.type === "device.system.power.restart"
+    || message.type === "device.system.power.shutdown";
 }
 
 export function createConnectorConnectionId(): string {

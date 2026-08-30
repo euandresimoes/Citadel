@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Connector, MemoryIdentityStore, PairingRequiredError, loadOrCreateIdentity } from "../../../../apps/@citadel/connector/src/index.js";
+import { Connector, MemoryIdentityStore, PairingRequiredError, loadOrCreateIdentity, type PowerCommandExecutor } from "../../../../apps/@citadel/connector/src/index.js";
 import { InMemoryPairingService } from "@citadel/device-service";
 import { RealtimeService } from "../src/index.js";
 import type { CommandResult } from "@citadel/protocol";
@@ -11,6 +11,7 @@ describe("RealtimeService", () => {
     const identity = loadOrCreateIdentity(identityStore).identity;
     let resolveResult: ((result: CommandResult) => void) | undefined;
     const resultPromise = new Promise<CommandResult>((resolve) => { resolveResult = resolve; });
+    const powerExecutor: PowerCommandExecutor = { execute: async () => undefined };
     const service = new RealtimeService({
       port: 0,
       pairing,
@@ -24,6 +25,7 @@ describe("RealtimeService", () => {
       deviceId: "device-e2e",
       heartbeatIntervalMs: 10,
       identityStore,
+      powerExecutor,
     });
 
     await expect(connector.connect()).rejects.toBeInstanceOf(PairingRequiredError);
@@ -42,6 +44,14 @@ describe("RealtimeService", () => {
     expect(commandResult.success).toBe(true);
     expect(commandResult.commandId).toBe("command-info-01");
     expect(commandResult.data).toMatchObject({ hostname: expect.any(String) });
+
+    const powerResultPromise = new Promise<CommandResult>((resolve) => { resolveResult = resolve; });
+    expect(service.sendCommand("device-e2e", {
+      id: "command-restart-01",
+      type: "device.system.power.restart",
+      deviceId: "device-e2e",
+    })).toBe(true);
+    await expect(powerResultPromise).resolves.toMatchObject({ commandId: "command-restart-01", success: true });
 
     connector.close();
     await service.close();
