@@ -478,6 +478,11 @@ The initial handshake is intentionally transport/session-oriented. Device
 persistence, pairing authorization, and command policy remain responsibilities
 of their respective Hub services and are not implemented by the Connector.
 
+Each device has one active network mode at a time: `lan` or `headscale`. During
+a user-requested network change, the Connector establishes and validates the
+new connection before closing the old one. The Realtime Service replaces the
+active session only after the new handshake succeeds.
+
 ```text
 Command
 cmd_a84f1
@@ -630,6 +635,7 @@ Citadel/
 │
 ├── packages/
 │   └── @citadel/
+│       ├── network/
 │       └── protocol/
 │           ├── src/
 │           │   ├── capabilities/
@@ -671,6 +677,7 @@ Citadel/
 
 | Package | Responsibility |
 |---|---|
+| `@citadel/network` | Network modes and provider contracts for LAN and Headscale |
 | `@citadel/protocol` | Shared communication contracts and validation |
 
 ---

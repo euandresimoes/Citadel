@@ -13,6 +13,8 @@ describe("Citadel protocol", () => {
     const result = DeviceHelloMessageSchema.safeParse({
       type: "device.hello",
       deviceId: "device-01",
+      connectionId: "connection-01",
+      networkMode: "lan",
       protocolVersion: PROTOCOL_VERSION,
       device: {
         hostname: "workstation",
@@ -31,8 +33,9 @@ describe("Citadel protocol", () => {
 
   it("rejects unknown fields in network payloads", () => {
     const result = DeviceHeartbeatMessageSchema.safeParse({
-      type: "device.heartbeat",
-      deviceId: "device-01",
+        type: "device.heartbeat",
+        deviceId: "device-01",
+        connectionId: "connection-01",
       timestamp: Date.now(),
       unexpected: true,
     });
@@ -55,6 +58,8 @@ describe("Citadel protocol", () => {
       HubHelloMessageSchema.parse({
         type: "hub.hello",
         deviceId: "device-01",
+        connectionId: "connection-01",
+        networkMode: "lan",
         protocolVersion: PROTOCOL_VERSION,
         sessionId: "session-01",
       }).type,

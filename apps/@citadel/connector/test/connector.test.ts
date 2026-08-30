@@ -11,12 +11,16 @@ describe("Connector handshake", () => {
 
     server.on("connection", (socket) => {
       socket.once("message", (raw) => {
-        const hello = JSON.parse(raw.toString()) as { deviceId: string; device: { hostname: string } };
+        const hello = JSON.parse(raw.toString()) as { deviceId: string; connectionId: string; networkMode: string; device: { hostname: string } };
         expect(hello.deviceId).toBe("device-test");
+        expect(hello.connectionId.length).toBeGreaterThan(0);
+        expect(hello.networkMode).toBe("lan");
         expect(hello.device.hostname.length).toBeGreaterThan(0);
         socket.send(JSON.stringify({
           type: "hub.hello",
           deviceId: hello.deviceId,
+          connectionId: hello.connectionId,
+          networkMode: hello.networkMode,
           protocolVersion: 1,
           sessionId: "session-test",
         }));

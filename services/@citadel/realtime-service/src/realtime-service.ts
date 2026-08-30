@@ -3,6 +3,7 @@ import {
   CitadelMessageSchema,
   PROTOCOL_VERSION,
   type DeviceHelloMessage,
+  type NetworkMode,
 } from "@citadel/protocol";
 import { WebSocketServer, type WebSocket } from "ws";
 
@@ -13,6 +14,8 @@ export interface RealtimeServiceOptions {
 
 export interface DeviceSession {
   deviceId: string;
+  connectionId: string;
+  networkMode: NetworkMode;
   sessionId: string;
   connectedAt: Date;
   lastHeartbeat: Date;
@@ -100,7 +103,9 @@ export class RealtimeService {
 
       if (parsed.data.type === "device.heartbeat") {
         const session = this.sessions.get(parsed.data.deviceId);
-        if (session?.socket === socket) session.lastHeartbeat = new Date(parsed.data.timestamp);
+        if (session?.socket === socket && session.connectionId === parsed.data.connectionId) {
+          session.lastHeartbeat = new Date(parsed.data.timestamp);
+        }
       }
     });
 
@@ -119,8 +124,11 @@ export class RealtimeService {
       return;
     }
 
+    const previousSession = this.sessions.get(hello.deviceId);
     const session: DeviceSession = {
       deviceId: hello.deviceId,
+      connectionId: hello.connectionId,
+      networkMode: hello.networkMode,
       sessionId: randomUUID(),
       connectedAt: new Date(),
       lastHeartbeat: new Date(),
@@ -130,9 +138,12 @@ export class RealtimeService {
     socket.send(JSON.stringify({
       type: "hub.hello",
       deviceId: hello.deviceId,
+      connectionId: hello.connectionId,
+      networkMode: hello.networkMode,
       protocolVersion: PROTOCOL_VERSION,
       sessionId: session.sessionId,
     }));
+    previousSession?.socket.close(1000, "Replaced by a newer network connection");
   }
 
   private sendError(socket: WebSocket, code: "protocol.invalid_message" | "protocol.unsupported_version" | "protocol.unauthorized", message: string): void {
