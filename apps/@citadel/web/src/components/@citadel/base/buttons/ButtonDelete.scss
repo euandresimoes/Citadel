@@ -1,0 +1,7 @@
+.button-delete {
+  background: var(--color-danger);
+  color: white;
+}
+.button-delete:hover:not(:disabled) {
+  filter: brightness(1.1);
+}

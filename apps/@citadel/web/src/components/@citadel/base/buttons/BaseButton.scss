@@ -1,0 +1,19 @@
+.base-button {
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.25rem;
+  padding: 0 var(--space-4);
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.base-button:focus-visible, .base-modal__close:focus-visible, .base-input__control:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.base-button:disabled { cursor: not-allowed; opacity: 0.5; }
+.base-button--full-width { width: 100%; }
