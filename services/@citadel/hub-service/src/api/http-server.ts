@@ -2,8 +2,10 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { randomUUID } from "node:crypto";
 import { HeaderMap } from "@apollo/server";
 import type { Command } from "@citadel/protocol";
+import type { PairingService } from "@citadel/device-service";
 import { HubCommandService, type CommandRecord } from "../commands/command-service.js";
 import { LocalSessionManager } from "../auth/session.js";
+import { ProfileAuthenticationService, InvalidCredentialsError } from "../auth/profile-service.js";
 import { HubEventBus } from "../events/event-bus.js";
 import { HubGraphqlServer } from "../graphql/server.js";
 import { commandView, RealtimeDeviceDirectory, type HubReadModel, type HubSessionSource } from "../graphql/context.js";
@@ -16,6 +18,8 @@ export interface HubHttpServerOptions {
   readModel?: HubReadModel;
   realtime?: HubSessionSource & { subscribeSessionEvents(listener: (event: { type: string; session?: unknown; deviceId?: string; connectionId?: string }) => void): () => void };
   events?: HubEventBus;
+  pairing?: PairingService;
+  profileAuth?: ProfileAuthenticationService;
 }
 
 export class HubHttpServer {
@@ -68,12 +72,27 @@ export class HubHttpServer {
 
   private async handle(request: IncomingMessage, response: ServerResponse): Promise<void> {
     const url = new URL(request.url ?? "/", "http://localhost");
+    if (url.pathname === "/api/v1/setup/status" && request.method === "GET") {
+      if (!isLoopback(request)) { sendJson(response, 403, { error: "Setup is available only from localhost" }); return; }
+      sendJson(response, 200, { configured: this.options.profileAuth ? await this.options.profileAuth.isConfigured() : true });
+      return;
+    }
+    if (url.pathname === "/api/v1/setup/profile" && request.method === "POST") { await this.setupProfile(request, response); return; }
     if (request.method === "POST" && url.pathname === "/api/v1/auth/login") { await this.login(request, response); return; }
     const session = this.options.sessions.authenticate(request);
     if (url.pathname === "/api/v1/auth/session" && request.method === "GET") {
       sendJson(response, session ? 200 : 401, session ? { actorId: session.actorId } : { error: "Unauthorized" });
       return;
     }
+    if (url.pathname === "/api/v1/auth/profile" && request.method === "GET") {
+      if (!session) { sendJson(response, 401, { error: "Unauthorized" }); return; }
+      if (!this.options.profileAuth) { sendJson(response, 404, { error: "Profile authentication is unavailable" }); return; }
+      const profile = (await this.options.profileAuth.getProfile());
+      sendJson(response, 200, profile ? { id: profile.id, displayName: profile.displayName, avatarBase64: profile.avatarBase64 ?? null, totpEnabled: Boolean(profile.totpSecretEncrypted) } : { error: "Profile is not configured" });
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/api/v1/auth/totp/enroll") { if (!session) { sendJson(response, 401, { error: "Unauthorized" }); return; } await this.enrollTotp(request, response, session); return; }
+    if (request.method === "POST" && url.pathname === "/api/v1/auth/totp/confirm") { if (!session) { sendJson(response, 401, { error: "Unauthorized" }); return; } await this.confirmTotp(request, response, session); return; }
     if (request.method === "POST" && url.pathname === "/api/v1/auth/logout") {
       if (!session) { sendJson(response, 401, { error: "Unauthorized" }); return; }
       if (!this.options.sessions.csrfValid(request, session)) { sendJson(response, 403, { error: "Invalid CSRF token" }); return; }
@@ -84,6 +103,15 @@ export class HubHttpServer {
     if (!session) { sendJson(response, 401, { error: "Unauthorized" }); return; }
     if (url.pathname === "/graphql") { await this.graphqlRequest(request, response, session); return; }
     if (url.pathname === "/api/v1/events" && request.method === "GET") { this.eventsRequest(request, response); return; }
+    if (url.pathname === "/api/v1/pairing/requests" && request.method === "GET") { await this.listPairing(response); return; }
+    const pairingAction = url.pathname.match(/^\/api\/v1\/pairing\/requests\/([^/]+)\/(approve|reject)$/);
+    if (request.method === "POST" && pairingAction?.[1] && pairingAction[2]) {
+      const action = pairingAction[2] === "approve" ? "approve" : "reject";
+      await this.pairingAction(request, response, pairingAction[1], action, session);
+      return;
+    }
+    const revoke = url.pathname.match(/^\/api\/v1\/devices\/([^/]+)\/revoke$/);
+    if (request.method === "POST" && revoke?.[1]) { await this.revokeDevice(request, response, revoke[1], session); return; }
     if (request.method === "POST" && url.pathname === "/api/v1/commands") { await this.createCommand(request, response, session.actorId, session); return; }
     const confirm = url.pathname.match(/^\/api\/v1\/commands\/([^/]+)\/confirm$/);
     if (request.method === "POST" && confirm?.[1]) { await this.confirmCommand(request, response, confirm[1], session.actorId, session); return; }
@@ -98,11 +126,47 @@ export class HubHttpServer {
 
   private async login(request: IncomingMessage, response: ServerResponse): Promise<void> {
     const body = await readJson(request);
+    if (this.options.profileAuth) {
+      if (!(await this.options.profileAuth.isConfigured())) { sendJson(response, 409, { error: "Profile setup is required" }); return; }
+      const method = body?.method === "otp" ? "otp" : body?.method === "password" ? "password" : undefined;
+      const credential = body?.credential;
+      if (!method || typeof credential !== "string") { sendJson(response, 400, { error: "method and credential are required" }); return; }
+      try { const result = await this.options.profileAuth.authenticate(method, credential); this.options.sessions.issue(result.actorId, response); response.writeHead(204).end(); }
+      catch (error) { sendJson(response, error instanceof InvalidCredentialsError ? 401 : 400, { error: error instanceof Error ? error.message : "Invalid credentials" }); }
+      return;
+    }
     if (typeof body?.password !== "string" || !(await this.options.sessions.login(body.password, response))) {
       sendJson(response, 401, { error: "Invalid credentials" });
       return;
     }
     response.writeHead(204).end();
+  }
+
+  private async setupProfile(request: IncomingMessage, response: ServerResponse): Promise<void> {
+    if (!isLoopback(request)) { sendJson(response, 403, { error: "Setup is available only from localhost" }); return; }
+    if (!this.options.profileAuth) { sendJson(response, 404, { error: "Profile authentication is unavailable" }); return; }
+    const body = await readJson(request);
+    if (typeof body?.password !== "string") { sendJson(response, 400, { error: "password is required" }); return; }
+    try {
+      const profile = await this.options.profileAuth.createProfile({ password: body.password, ...(typeof body.displayName === "string" ? { displayName: body.displayName } : {}), ...(typeof body.avatarBase64 === "string" ? { avatarBase64: body.avatarBase64 } : {}) });
+      this.options.sessions.issue(profile.id, response);
+      sendJson(response, 201, { id: profile.id, displayName: profile.displayName, totpEnabled: false });
+    } catch (error) { sendJson(response, error instanceof Error && error.name === "ProfileAlreadyConfiguredError" ? 409 : 400, { error: error instanceof Error ? error.message : "Unable to create profile" }); }
+  }
+
+  private async enrollTotp(request: IncomingMessage, response: ServerResponse, session: { actorId: string; csrfToken: string }): Promise<void> {
+    if (!this.options.profileAuth) { sendJson(response, 404, { error: "Profile authentication is unavailable" }); return; }
+    if (!this.options.sessions.csrfValid(request, session)) { sendJson(response, 403, { error: "Invalid CSRF token" }); return; }
+    sendJson(response, 200, await this.options.profileAuth.beginTotpEnrollment());
+  }
+
+  private async confirmTotp(request: IncomingMessage, response: ServerResponse, session: { actorId: string; csrfToken: string }): Promise<void> {
+    if (!this.options.profileAuth) { sendJson(response, 404, { error: "Profile authentication is unavailable" }); return; }
+    if (!this.options.sessions.csrfValid(request, session)) { sendJson(response, 403, { error: "Invalid CSRF token" }); return; }
+    const body = await readJson(request);
+    if (typeof body?.token !== "string") { sendJson(response, 400, { error: "token is required" }); return; }
+    try { sendJson(response, 200, { recoveryCodes: await this.options.profileAuth.confirmTotpEnrollment(body.token) }); }
+    catch (error) { sendJson(response, 400, { error: error instanceof Error ? error.message : "Unable to confirm OTP" }); }
   }
 
   private async graphqlRequest(request: IncomingMessage, response: ServerResponse, session: { actorId: string }): Promise<void> {
@@ -137,6 +201,26 @@ export class HubHttpServer {
     } catch (error) { sendJson(response, error instanceof Error && error.name === "CommandAuthorizationError" ? 403 : 400, { error: error instanceof Error ? error.message : "Invalid command" }); }
   }
 
+  private async listPairing(response: ServerResponse): Promise<void> {
+    if (!this.options.pairing) { sendJson(response, 503, { error: "Pairing service is unavailable" }); return; }
+    sendJson(response, 200, await this.options.pairing.listPending());
+  }
+
+  private async pairingAction(request: IncomingMessage, response: ServerResponse, requestId: string, action: "approve" | "reject", session: { csrfToken: string }): Promise<void> {
+    if (!this.options.pairing) { sendJson(response, 503, { error: "Pairing service is unavailable" }); return; }
+    if (!this.options.sessions.csrfValid(request, session)) { sendJson(response, 403, { error: "Invalid CSRF token" }); return; }
+    if (action === "approve") await this.options.pairing.approve(requestId);
+    else await this.options.pairing.reject(requestId);
+    response.writeHead(204).end();
+  }
+
+  private async revokeDevice(request: IncomingMessage, response: ServerResponse, deviceId: string, session: { csrfToken: string }): Promise<void> {
+    if (!this.options.pairing) { sendJson(response, 503, { error: "Pairing service is unavailable" }); return; }
+    if (!this.options.sessions.csrfValid(request, session)) { sendJson(response, 403, { error: "Invalid CSRF token" }); return; }
+    await this.options.pairing.revoke(deviceId);
+    response.writeHead(204).end();
+  }
+
   private async confirmCommand(request: IncomingMessage, response: ServerResponse, commandId: string, actorId: string, session: { csrfToken: string }): Promise<void> {
     if (!this.options.sessions.csrfValid(request, session)) { sendJson(response, 403, { error: "Invalid CSRF token" }); return; }
     try { sendJson(response, 200, viewCommand(await this.options.commands.confirm(actorId, commandId))); }
@@ -166,4 +250,9 @@ async function readJson(request: IncomingMessage): Promise<Record<string, unknow
   if (chunks.length === 0) return undefined;
   try { return JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, unknown>; }
   catch { return undefined; }
+}
+
+function isLoopback(request: IncomingMessage): boolean {
+  const address = request.socket.remoteAddress;
+  return address === "127.0.0.1" || address === "::1" || address === "::ffff:127.0.0.1";
 }

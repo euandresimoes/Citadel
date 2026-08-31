@@ -169,10 +169,37 @@ REST is reserved for authentication and state-changing operations such as
 commands, pairing, and network changes. Server-Sent Events are exposed under
 `/api/v1/events` for authenticated frontend updates. GraphQL modules are split
 by domain under `services/@citadel/hub-service/src/graphql`.
+The REST contract is maintained in [`docs/api/openapi.yaml`](docs/api/openapi.yaml).
+
+On first access, the local frontend bootstraps one Hub profile from loopback
+only. The profile uses a minimum 12-character password, optional PNG/JPEG/WebP
+avatar stored as a bounded data URL, and optional TOTP enrollment through a QR
+code. Once enabled, login explicitly selects `password` or `otp`; recovery
+codes are generated during enrollment and each can be used only once. Sessions
+use an HttpOnly, SameSite cookie, CSRF protection, a 12-hour absolute lifetime,
+and a 30-minute idle timeout.
 
 The GraphQL `devices` read model is backed by active Realtime Service sessions,
 while connection lifecycle and command state changes are published through the
 Hub Event Bus and forwarded to authenticated SSE clients.
+
+The Hub Runtime is the composition root for these components. Frontend pairing
+operations are exposed through the Hub REST facade, which applies the Hub
+session and CSRF policy before delegating to the Device Service.
+
+Command records are persisted by the Hub Service through an injected repository
+and the migration in `services/@citadel/hub-service/migrations`. The Hub keeps
+the repository boundary separate from the Realtime transport and does not
+access the Device Service database directly.
+
+When `databaseUrl`, `migrationsDirectory`, and
+`deviceMigrationsDirectory` are provided to the Hub Runtime, both command and
+pairing migrations run transactionally during startup and are tracked in
+`citadel_schema_migrations`. The same PostgreSQL pool is then used to create
+the persisted pairing, command, and profile repositories automatically when a
+stable 32-byte `profileEncryptionKey` is provided to the runtime. TOTP secrets
+are encrypted at rest with AES-256-GCM and the key must be kept outside the
+database.
 
 Pairing state and registered device identities are persisted by the Device
 Service in PostgreSQL. The Realtime Service consumes the Device Service pairing
@@ -286,7 +313,7 @@ This becomes especially important for future automation and AI agent integration
 
 ## API Gateway
 
-`@citadel/api-gateway`
+`@citadel/hub-service`
 
 The API Gateway is the main backend interface used by the Citadel web application.
 
@@ -728,9 +755,9 @@ Citadel/
 | Package Manager | pnpm |
 | Monorepo | pnpm Workspaces |
 | Web | React + Vite |
-| API Gateway | Fastify |
+| API Gateway | Node.js HTTP server |
 | Client API | GraphQL |
-| GraphQL Server | Mercurius |
+| GraphQL Server | Apollo Server |
 | Internal APIs | REST |
 | Realtime Communication | WebSocket (`ws`) |
 | Validation | Zod |

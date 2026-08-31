@@ -1,0 +1,318 @@
+openapi: 3.1.0
+info:
+  title: Citadel Hub REST API
+  version: 1.0.0
+  description: State-changing and authentication API for the local Citadel Hub frontend.
+servers:
+  - url: http://127.0.0.1:75523
+    description: Local Hub API
+tags:
+  - name: Setup
+  - name: Authentication
+  - name: Commands
+  - name: Pairing
+  - name: Events
+paths:
+  /api/v1/setup/status:
+    get:
+      tags: [Setup]
+      summary: Check whether the local profile has been configured
+      description: Only loopback requests are accepted.
+      responses:
+        '200':
+          description: Setup state
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SetupStatus' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/setup/profile:
+    post:
+      tags: [Setup]
+      summary: Create the single local Hub profile
+      description: Only loopback requests are accepted and this operation can succeed once.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProfileSetup' }
+      responses:
+        '201':
+          description: Profile created and session cookies issued
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProfileSummary' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/v1/auth/login:
+    post:
+      tags: [Authentication]
+      summary: Start a local authenticated session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '204': { description: Session cookies issued }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { description: Profile setup is required }
+  /api/v1/auth/logout:
+    post:
+      tags: [Authentication]
+      summary: End the current session
+      security: [{ cookieSession: [], csrfHeader: [] }]
+      responses:
+        '204': { description: Session ended }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/auth/session:
+    get:
+      tags: [Authentication]
+      summary: Read the current session
+      security: [{ cookieSession: [] }]
+      responses:
+        '200':
+          description: Authenticated session
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [actorId]
+                properties: { actorId: { type: string } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/v1/auth/profile:
+    get:
+      tags: [Authentication]
+      summary: Read the local profile summary
+      security: [{ cookieSession: [] }]
+      responses:
+        '200':
+          description: Profile summary without secrets
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProfileSummary' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/v1/auth/totp/enroll:
+    post:
+      tags: [Authentication]
+      summary: Begin TOTP enrollment
+      security: [{ cookieSession: [], csrfHeader: [] }]
+      responses:
+        '200':
+          description: Enrollment URI and QR image
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [otpauthUri, qrCodeDataUrl]
+                properties:
+                  otpauthUri: { type: string, format: uri }
+                  qrCodeDataUrl: { type: string, pattern: '^data:image/png;base64,' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/auth/totp/confirm:
+    post:
+      tags: [Authentication]
+      summary: Confirm TOTP enrollment and receive recovery codes
+      security: [{ cookieSession: [], csrfHeader: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties: { token: { type: string, pattern: '^\\d{6}$' } }
+      responses:
+        '200':
+          description: Recovery codes; shown once
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [recoveryCodes]
+                properties:
+                  recoveryCodes: { type: array, minItems: 8, maxItems: 8, items: { type: string } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/commands:
+    post:
+      tags: [Commands]
+      summary: Request a command for a connected device
+      description: Commands enter awaiting_confirmation and are not dispatched until explicitly confirmed.
+      security: [{ cookieSession: [], csrfHeader: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deviceId, type]
+              properties:
+                deviceId: { type: string }
+                type: { type: string, enum: [device.system.power.sleep, device.system.power.restart, device.system.power.shutdown] }
+      responses:
+        '202':
+          description: Command awaiting confirmation
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Command' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/commands/{commandId}/confirm:
+    post:
+      tags: [Commands]
+      summary: Confirm and dispatch a command
+      security: [{ cookieSession: [], csrfHeader: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CommandId' }
+      responses:
+        '200':
+          description: Command dispatched
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Command' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/v1/commands/{commandId}:
+    get:
+      tags: [Commands]
+      summary: Read command state
+      security: [{ cookieSession: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/CommandId' }
+      responses:
+        '200':
+          description: Command state
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Command' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/pairing/requests:
+    get:
+      tags: [Pairing]
+      summary: List pending device pairing requests
+      security: [{ cookieSession: [] }]
+      responses:
+        '200': { description: Pending requests, content: { application/json: { schema: { type: array, items: { type: object } } } } }
+        '503': { description: Pairing service unavailable }
+  /api/v1/pairing/requests/{requestId}/{action}:
+    post:
+      tags: [Pairing]
+      summary: Approve or reject a pairing request
+      security: [{ cookieSession: [], csrfHeader: [] }]
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: action
+          in: path
+          required: true
+          schema: { type: string, enum: [approve, reject] }
+      responses:
+        '204': { description: Pairing decision applied }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { description: Pairing service unavailable }
+  /api/v1/devices/{deviceId}/revoke:
+    post:
+      tags: [Pairing]
+      summary: Revoke a paired device
+      security: [{ cookieSession: [], csrfHeader: [] }]
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '204': { description: Device revoked }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/events:
+    get:
+      tags: [Events]
+      summary: Subscribe to authenticated Hub events
+      security: [{ cookieSession: [] }]
+      responses:
+        '200':
+          description: Server-Sent Events stream
+          content:
+            text/event-stream:
+              schema: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+components:
+  securitySchemes:
+    cookieSession:
+      type: apiKey
+      in: cookie
+      name: citadel_session
+    csrfHeader:
+      type: apiKey
+      in: header
+      name: x-citadel-csrf
+  parameters:
+    CommandId:
+      name: commandId
+      in: path
+      required: true
+      schema: { type: string }
+  schemas:
+    SetupStatus:
+      type: object
+      required: [configured]
+      properties: { configured: { type: boolean } }
+    ProfileSetup:
+      type: object
+      required: [password]
+      properties:
+        password: { type: string, minLength: 12, writeOnly: true }
+        displayName: { type: string, default: Admin }
+        avatarBase64: { type: string, description: PNG, JPEG, or WebP data URL up to 2 MiB decoded }
+    ProfileSummary:
+      type: object
+      required: [id, displayName, totpEnabled]
+      properties:
+        id: { type: string, example: local-profile }
+        displayName: { type: string }
+        avatarBase64: { type: [string, 'null'] }
+        totpEnabled: { type: boolean }
+    LoginRequest:
+      type: object
+      required: [method, credential]
+      properties:
+        method: { type: string, enum: [password, otp] }
+        credential: { type: string, writeOnly: true }
+    Command:
+      type: object
+      required: [id, deviceId, type, state, createdAt, expiresAt]
+      properties:
+        id: { type: string }
+        deviceId: { type: string }
+        type: { type: string }
+        state: { type: string, enum: [awaiting_confirmation, dispatched, succeeded, failed, expired] }
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        confirmedAt: { type: [string, 'null'], format: date-time }
+        completedAt: { type: [string, 'null'], format: date-time }
+        error: { type: [string, 'null'] }
+  responses:
+    BadRequest:
+      description: Invalid request
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    Unauthorized:
+      description: Authentication required or invalid credentials
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    Forbidden:
+      description: CSRF, authorization, or loopback policy failure
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    Conflict:
+      description: State conflict
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    NotFound:
+      description: Resource not found
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    Error:
+      type: object
+      required: [error]
+      properties: { error: { type: string } }
