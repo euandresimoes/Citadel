@@ -164,6 +164,16 @@ it. After dispatch, the result received from the matching device moves the
 command to `succeeded` or `failed`; unconfirmed commands become `expired` when
 their confirmation TTL is reached and their state is evaluated.
 
+The Hub API uses Apollo Server for read-only GraphQL queries under `/graphql`.
+REST is reserved for authentication and state-changing operations such as
+commands, pairing, and network changes. Server-Sent Events are exposed under
+`/api/v1/events` for authenticated frontend updates. GraphQL modules are split
+by domain under `services/@citadel/hub-service/src/graphql`.
+
+The GraphQL `devices` read model is backed by active Realtime Service sessions,
+while connection lifecycle and command state changes are published through the
+Hub Event Bus and forwarded to authenticated SSE clients.
+
 Pairing state and registered device identities are persisted by the Device
 Service in PostgreSQL. The Realtime Service consumes the Device Service pairing
 authorization contract and does not access the database directly.

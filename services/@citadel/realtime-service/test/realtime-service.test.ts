@@ -83,4 +83,24 @@ describe("RealtimeService", () => {
     connector.close();
     await service.close();
   });
+
+  it("exposes connection lifecycle events and active sessions", async () => {
+    const pairing = new InMemoryPairingService();
+    const identityStore = new MemoryIdentityStore();
+    const identity = loadOrCreateIdentity(identityStore).identity;
+    const request = await pairing.requestPairing("device-events", identity);
+    await pairing.approve(request.requestId);
+    const events: string[] = [];
+    const service = new RealtimeService({ port: 0, pairing, onSessionEvent: (event) => events.push(event.type) });
+    await service.ready();
+    const connector = new Connector({ url: `ws://127.0.0.1:${service.port()}`, deviceId: "device-events", identityStore });
+    await connector.connect();
+    expect(service.listSessions()).toHaveLength(1);
+    expect(events).toContain("device.connected");
+
+    connector.close();
+    await expect.poll(() => events, { timeout: 2_000 }).toContain("device.disconnected");
+    expect(service.listSessions()).toHaveLength(0);
+    await service.close();
+  });
 });

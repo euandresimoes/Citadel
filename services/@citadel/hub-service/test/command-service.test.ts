@@ -3,7 +3,7 @@ import { Connector, MemoryIdentityStore, type PowerCommandExecutor } from "@cita
 import { InMemoryPairingService } from "@citadel/device-service";
 import { RealtimeService } from "@citadel/realtime-service";
 import type { CitadelMessage } from "@citadel/protocol";
-import { HubCommandService, InMemoryCommandRepository, type CommandAuthorizer, type CommandTransport } from "../src/index.js";
+import { HubCommandService, InMemoryCommandRepository, RealtimeDeviceDirectory, type CommandAuthorizer, type CommandTransport } from "../src/index.js";
 
 describe("HubCommandService", () => {
   it("requires explicit confirmation before dispatching power commands", async () => {
@@ -79,5 +79,24 @@ describe("HubCommandService", () => {
 
     connector.close();
     await realtime.close();
+  });
+
+  it("maps active Realtime sessions to the GraphQL device read model", async () => {
+    const directory = new RealtimeDeviceDirectory({
+      listSessions: () => [{
+        deviceId: "device-1",
+        networkMode: "headscale",
+        connectionId: "connection-1",
+        connectedAt: new Date("2026-01-01T00:00:00.000Z"),
+        lastHeartbeat: new Date("2026-01-01T00:00:01.000Z"),
+      }],
+    });
+    await expect(directory.listDevices()).resolves.toEqual([{
+      id: "device-1",
+      networkMode: "headscale",
+      connectionId: "connection-1",
+      connectedAt: "2026-01-01T00:00:00.000Z",
+      lastHeartbeat: "2026-01-01T00:00:01.000Z",
+    }]);
   });
 });

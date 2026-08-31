@@ -19,6 +19,7 @@ export interface RealtimeServiceOptions {
   pairing: PairingAuthorizer;
   tls?: { key: string | Buffer; cert: string | Buffer };
   onMessage?: (deviceId: string, message: CitadelMessage) => void;
+  onSessionEvent?: SessionEventListener;
 }
 
 export interface DeviceSession {
@@ -31,16 +32,25 @@ export interface DeviceSession {
   socket: WebSocketConnection;
 }
 
+export type SessionEvent =
+  | { type: "device.connected"; session: DeviceSession }
+  | { type: "device.disconnected"; deviceId: string; connectionId: string };
+
+export type SessionEventListener = (event: SessionEvent) => void;
+
 export class RealtimeService {
   private readonly server: WebSocketServer;
   private readonly listener: Server | undefined;
   private readonly sessions = new Map<string, DeviceSession>();
+  private readonly sessionEventListeners = new Set<SessionEventListener>();
   private readonly pairing: PairingAuthorizer;
   private readonly onMessage: RealtimeServiceOptions["onMessage"];
+  private readonly onSessionEvent: RealtimeServiceOptions["onSessionEvent"];
 
   public constructor(options: RealtimeServiceOptions) {
     this.pairing = options.pairing;
     this.onMessage = options.onMessage;
+    this.onSessionEvent = options.onSessionEvent;
     if (options.tls) {
       this.listener = createHttpsServer(options.tls);
       this.server = new WebSocketServer({ server: this.listener });
@@ -84,6 +94,15 @@ export class RealtimeService {
 
   public getSession(deviceId: string): DeviceSession | undefined {
     return this.sessions.get(deviceId);
+  }
+
+  public listSessions(): DeviceSession[] {
+    return [...this.sessions.values()];
+  }
+
+  public subscribeSessionEvents(listener: SessionEventListener): () => void {
+    this.sessionEventListeners.add(listener);
+    return () => this.sessionEventListeners.delete(listener);
   }
 
   public sendCommand(deviceId: string, command: Command): boolean {
@@ -168,7 +187,10 @@ export class RealtimeService {
     socket.on("close", () => {
       clearTimeout(handshakeTimeout);
       for (const [deviceId, session] of this.sessions) {
-        if (session.socket === socket) this.sessions.delete(deviceId);
+        if (session.socket === socket) {
+          this.sessions.delete(deviceId);
+          this.emitSessionEvent({ type: "device.disconnected", deviceId, connectionId: session.connectionId });
+        }
       }
     });
   }
@@ -228,6 +250,7 @@ export class RealtimeService {
       socket,
     };
     this.sessions.set(hello.deviceId, session);
+    this.emitSessionEvent({ type: "device.connected", session });
     socket.send(JSON.stringify({
       type: "hub.hello",
       deviceId: hello.deviceId,
@@ -241,5 +264,10 @@ export class RealtimeService {
 
   private sendError(socket: WebSocketConnection, code: "protocol.invalid_message" | "protocol.unsupported_version" | "protocol.unauthorized", message: string): void {
     socket.send(JSON.stringify({ type: "protocol.error", code, message }));
+  }
+
+  private emitSessionEvent(event: SessionEvent): void {
+    this.onSessionEvent?.(event);
+    for (const listener of this.sessionEventListeners) listener(event);
   }
 }

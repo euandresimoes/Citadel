@@ -28,6 +28,8 @@ export interface CommandRepository {
   update(record: CommandRecord): Promise<void>;
 }
 
+export type CommandChangeListener = (record: CommandRecord) => void;
+
 export class InMemoryCommandRepository implements CommandRepository {
   private readonly records = new Map<string, CommandRecord>();
 
@@ -51,12 +53,19 @@ export class CommandStateError extends Error {
 }
 
 export class HubCommandService {
+  private readonly listeners = new Set<CommandChangeListener>();
+
   public constructor(
     private readonly transport: CommandTransport,
     private readonly authorizer: CommandAuthorizer,
     private readonly repository: CommandRepository = new InMemoryCommandRepository(),
     private readonly confirmationTtlMs = 5 * 60_000,
   ) {}
+
+  public subscribe(listener: CommandChangeListener): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
 
   public async request(actorId: string, command: Omit<Command, "id">): Promise<CommandRecord> {
     const commandWithId = { ...command, id: randomUUID() } as Command;
@@ -73,6 +82,7 @@ export class HubCommandService {
       expiresAt: new Date(now.getTime() + this.confirmationTtlMs),
     };
     await this.repository.save(record);
+    this.emit(record);
     if (record.state === "dispatched") await this.dispatch(record);
     return record;
   }
@@ -90,6 +100,7 @@ export class HubCommandService {
     record.confirmedAt = new Date();
     record.state = "dispatched";
     await this.repository.update(record);
+    this.emit(record);
     await this.dispatch(record);
     return record;
   }
@@ -101,14 +112,17 @@ export class HubCommandService {
     record.completedAt = new Date();
     if (result.success === false) record.error = result.error;
     await this.repository.update(record);
+    this.emit(record);
     return record;
   }
 
   public async get(commandId: string): Promise<CommandRecord | undefined> {
     const record = await this.repository.get(commandId);
     if (record) {
+      const previousState = record.state;
       this.expireIfNeeded(record);
       await this.repository.update(record);
+      if (previousState !== record.state) this.emit(record);
     }
     return record;
   }
@@ -125,6 +139,11 @@ export class HubCommandService {
     record.error = "Device is offline";
     record.completedAt = new Date();
     await this.repository.update(record);
+    this.emit(record);
+  }
+
+  private emit(record: CommandRecord): void {
+    for (const listener of this.listeners) listener(record);
   }
 
   private expireIfNeeded(record: CommandRecord): void {

@@ -17,7 +17,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@citadel/protocol": "workspace:*"
+    "@apollo/server": "^5.5.1",
+    "@citadel/protocol": "workspace:*",
+    "graphql": "^16.14.2"
   },
   "devDependencies": {
     "@citadel/connector": "workspace:*",
