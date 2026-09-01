@@ -1,4 +1,4 @@
-# Citadel infrastructure
+# Citadela infrastructure
 
 The local Compose stack currently provides PostgreSQL for the Device Service
 and Hub Service.
@@ -10,7 +10,7 @@ docker compose -f infrastructure/docker-compose.yml up -d postgres
 Use this connection string with the Hub Runtime:
 
 ```text
-postgresql://citadel:citadel-dev-only@127.0.0.1:5432/citadel
+postgresql://citadela:citadela-dev-only@127.0.0.1:5432/citadela
 ```
 
 The default password is for local development only. Copy

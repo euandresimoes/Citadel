@@ -1,6 +1,0 @@
-{
-  "extends": "../../../packages/@citadel/protocol/tsconfig.json",
-  "compilerOptions": { "rootDir": "src", "outDir": "dist", "esModuleInterop": true },
-  "include": ["src/**/*.ts"],
-  "exclude": ["dist", "node_modules"]
-}

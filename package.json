@@ -1,8 +1,8 @@
 {
-  "name": "citadel",
+  "name": "citadela",
   "version": "1.0.0",
   "private": true,
-  "description": "Citadel self-hosted device control plane",
+  "description": "Citadela self-hosted device control plane",
   "scripts": {
     "build": "pnpm -r build",
     "typecheck": "pnpm -r build && pnpm -r typecheck",

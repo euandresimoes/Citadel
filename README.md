@@ -1,13 +1,13 @@
-# 🏰 Citadel
+# 🏰 Citadela
 
 > **A self-hosted control plane for your devices.**
 
-Citadel is an open-source platform for connecting, monitoring, and controlling multiple devices from a single self-hosted Hub.
+Citadela is an open-source platform for connecting, monitoring, and controlling multiple devices from a single self-hosted Hub.
 
-Install the **Citadel Hub** on your main machine, connect other devices using the **Citadel Connector**, and manage everything from a local web interface.
+Install the **Citadela Hub** on your main machine, connect other devices using the **Citadela Connector**, and manage everything from a local web interface.
 
 ```text
-                    Citadel Hub
+                    Citadela Hub
                   http://localhost:75523
                            │
               ┌────────────┼────────────┐
@@ -16,20 +16,20 @@ Install the **Citadel Hub** on your main machine, connect other devices using th
            Desktop      Raspberry      Server
            Windows        Linux         Linux
               │            │            │
-              └──── Citadel Connector ──┘
+              └──── Citadela Connector ──┘
 ```
 
-Citadel is designed around the idea that every connected device exposes a set of **capabilities** and explicitly grants a set of **permissions** to the Hub.
+Citadela is designed around the idea that every connected device exposes a set of **capabilities** and explicitly grants a set of **permissions** to the Hub.
 
 The long-term goal is to provide a secure and extensible control layer over personal computers, servers, Raspberry Pis, containers, and eventually remote networks and AI agents.
 
 ---
 
-## ✨ Why Citadel?
+## ✨ Why Citadela?
 
 Managing multiple devices usually means switching between SSH sessions, remote desktop tools, dashboards, scripts, routers, and different management interfaces.
 
-Citadel aims to provide a single place for all of them.
+Citadela aims to provide a single place for all of them.
 
 From the Hub, you will be able to:
 
@@ -43,21 +43,21 @@ From the Hub, you will be able to:
 - Rename, pin, reconnect, disconnect, and remove devices.
 - Extend devices with additional capabilities in the future.
 
-> Citadel is not a deployment platform.
+> Citadela is not a deployment platform.
 >
-> The primary resource in Citadel is the **device itself**, not the application running on it.
+> The primary resource in Citadela is the **device itself**, not the application running on it.
 
 ---
 
 ## 🚧 Project Status
 
-Citadel is currently in early development.
+Citadela is currently in early development.
 
 The first milestone focuses exclusively on devices connected through the same **local network**.
 
 ### MVP scope
 
-- [ ] Citadel Hub
+- [ ] Citadela Hub
 - [ ] Local web dashboard
 - [ ] LAN discovery
 - [ ] Device pairing
@@ -98,7 +98,7 @@ The first milestone focuses exclusively on devices connected through the same **
 
 # Architecture
 
-Citadel uses a **microservices architecture** organized inside a `pnpm` monorepo.
+Citadela uses a **microservices architecture** organized inside a `pnpm` monorepo.
 
 The system is divided into three main areas:
 
@@ -107,7 +107,7 @@ The system is divided into three main areas:
 3. **Device Connector**
 
 ```text
-                                Citadel
+                                Citadela
 
                            localhost:75523
                                  │
@@ -137,7 +137,7 @@ The system is divided into three main areas:
 
 ## Hub
 
-The **Hub** is the central Citadel instance.
+The **Hub** is the central Citadela instance.
 
 It is responsible for:
 
@@ -168,7 +168,7 @@ The Hub API uses Apollo Server for read-only GraphQL queries under `/graphql`.
 REST is reserved for authentication and state-changing operations such as
 commands, pairing, and network changes. Server-Sent Events are exposed under
 `/api/v1/events` for authenticated frontend updates. GraphQL modules are split
-by domain under `services/@citadel/hub-service/src/graphql`.
+by domain under `services/@citadela/hub-service/src/graphql`.
 The REST contract is maintained in [`docs/api/openapi.yaml`](docs/api/openapi.yaml).
 
 On first access, the local frontend bootstraps one Hub profile from loopback
@@ -188,14 +188,14 @@ operations are exposed through the Hub REST facade, which applies the Hub
 session and CSRF policy before delegating to the Device Service.
 
 Command records are persisted by the Hub Service through an injected repository
-and the migration in `services/@citadel/hub-service/migrations`. The Hub keeps
+and the migration in `services/@citadela/hub-service/migrations`. The Hub keeps
 the repository boundary separate from the Realtime transport and does not
 access the Device Service database directly.
 
 When `databaseUrl`, `migrationsDirectory`, and
 `deviceMigrationsDirectory` are provided to the Hub Runtime, both command and
 pairing migrations run transactionally during startup and are tracked in
-`citadel_schema_migrations`. The same PostgreSQL pool is then used to create
+`citadela_schema_migrations`. The same PostgreSQL pool is then used to create
 the persisted pairing, command, and profile repositories automatically when a
 stable 32-byte `profileEncryptionKey` is provided to the runtime. TOTP secrets
 are encrypted at rest with AES-256-GCM and the key must be kept outside the
@@ -209,7 +209,7 @@ authorization contract and does not access the database directly.
 
 ## Connector
 
-The **Citadel Connector** is a lightweight application installed on devices that should be managed by Citadel.
+The **Citadela Connector** is a lightweight application installed on devices that should be managed by Citadela.
 
 The Connector initiates the connection to the Hub.
 
@@ -218,12 +218,12 @@ Connector
     │
     │ WebSocket
     ▼
-Citadel Hub
+Citadela Hub
 ```
 
 The Hub does **not** need to directly understand how Windows, Linux, or another operating system performs an action.
 
-Instead, it sends commands using the **Citadel Protocol**:
+Instead, it sends commands using the **Citadela Protocol**:
 
 ```text
 Hub
@@ -241,7 +241,7 @@ Platform Adapter
 
 This keeps platform-specific behavior outside of the Hub.
 
-The command names are defined by `@citadel/protocol`. Power commands sent to a
+The command names are defined by `@citadela/protocol`. Power commands sent to a
 Connector are currently:
 
 - `device.system.power.restart`
@@ -256,7 +256,7 @@ local network.
 
 # Capabilities & Permissions
 
-Citadel treats **capabilities** and **permissions** as two different concepts.
+Citadela treats **capabilities** and **permissions** as two different concepts.
 
 ### Capability
 
@@ -313,9 +313,9 @@ This becomes especially important for future automation and AI agent integration
 
 ## API Gateway
 
-`@citadel/hub-service`
+`@citadela/hub-service`
 
-The API Gateway is the main backend interface used by the Citadel web application.
+The API Gateway is the main backend interface used by the Citadela web application.
 
 The frontend communicates primarily through **GraphQL**.
 
@@ -352,7 +352,7 @@ Internal service communication can use REST where appropriate.
 
 ## Device Service
 
-`@citadel/device-service`
+`@citadela/device-service`
 
 Responsible for persistent device information.
 
@@ -385,7 +385,7 @@ DELETE /devices/:id
 
 ## Control Service
 
-`@citadel/control-service`
+`@citadela/control-service`
 
 Responsible for device actions.
 
@@ -439,7 +439,7 @@ Offline Device
 
 ## Realtime Service
 
-`@citadel/realtime-service`
+`@citadela/realtime-service`
 
 Responsible for live communication between the Hub and connected devices.
 
@@ -476,11 +476,11 @@ Active connections belong to the Realtime Service.
 
 ---
 
-# Citadel Protocol
+# Citadela Protocol
 
-`@citadel/protocol`
+`@citadela/protocol`
 
-The Citadel Protocol is a shared package containing the contracts used between the Hub and Connectors.
+The Citadela Protocol is a shared package containing the contracts used between the Hub and Connectors.
 
 Neither the Hub nor the Connector should import implementation code from each other.
 
@@ -567,12 +567,12 @@ Network payloads are validated at runtime instead of relying exclusively on Type
 
 ## Local Network
 
-The first Citadel networking provider is the local network.
+The first Citadela networking provider is the local network.
 
 ```text
                   LAN
 
-            Citadel Hub
+            Citadela Hub
            192.168.1.10
                  │
        ┌─────────┼─────────┐
@@ -581,7 +581,7 @@ The first Citadel networking provider is the local network.
       PC      Raspberry   Server
 ```
 
-Citadel may use technologies such as **mDNS** for Hub discovery.
+Citadela may use technologies such as **mDNS** for Hub discovery.
 
 After pairing, Connectors establish persistent connections with the Hub.
 
@@ -591,19 +591,19 @@ After pairing, Connectors establish persistent connections with the Hub.
 
 Remote Mesh is planned for a later version.
 
-The goal is to allow Citadel devices to communicate even when they are located on completely different networks.
+The goal is to allow Citadela devices to communicate even when they are located on completely different networks.
 
 ```text
 Home PC ───────┐
                │
-Laptop ────────┼── Private Mesh ── Citadel Hub
+Laptop ────────┼── Private Mesh ── Citadela Hub
                │
 Cloud VPS ─────┤
                │
 Office PC ─────┘
 ```
 
-The planned architecture allows networking implementations to remain separate from Citadel's device-control protocol.
+The planned architecture allows networking implementations to remain separate from Citadela's device-control protocol.
 
 Potential providers include:
 
@@ -612,15 +612,15 @@ Potential providers include:
 - Tailscale
 - Other WireGuard-based mesh networks
 
-This means the rest of Citadel does not need to care whether a device is physically nearby or on another network.
+This means the rest of Citadela does not need to care whether a device is physically nearby or on another network.
 
 ---
 
 # Future AI Integration
 
-AI is **not required** for Citadel to be useful.
+AI is **not required** for Citadela to be useful.
 
-However, Citadel is being designed so its device capabilities can eventually become tools available to an LLM.
+However, Citadela is being designed so its device capabilities can eventually become tools available to an LLM.
 
 Today:
 
@@ -631,7 +631,7 @@ User
 Web UI
  │
  ▼
-Citadel
+Citadela
  │
  ▼
 Device
@@ -646,10 +646,10 @@ User
 LLM Agent
  │
  ▼
-Citadel Tool Harness
+Citadela Tool Harness
  │
  ▼
-Citadel Control Plane
+Citadela Control Plane
  │
  ├────────────┬────────────┐
  ▼            ▼            ▼
@@ -676,29 +676,29 @@ Or:
 
 > Check all my Linux machines and tell me which one currently has the most available resources.
 
-Citadel permissions would remain the final authority over what an AI agent is allowed to execute.
+Citadela permissions would remain the final authority over what an AI agent is allowed to execute.
 
 ---
 
 # Project Structure
 
 ```text
-Citadel/
+Citadela/
 │
 ├── apps/
-│   └── @citadel/
+│   └── @citadela/
 │       ├── web/
 │       └── connector/
 │
 ├── services/
-│   └── @citadel/
+│   └── @citadela/
 │       ├── api-gateway/
 │       ├── device-service/
 │       ├── control-service/
 │       └── realtime-service/
 │
 ├── packages/
-│   └── @citadel/
+│   └── @citadela/
 │       ├── network/
 │       └── protocol/
 │           ├── src/
@@ -725,24 +725,24 @@ Citadel/
 
 | Package | Description |
 |---|---|
-| `@citadel/web` | Citadel web dashboard |
-| `@citadel/connector` | Client installed on managed devices |
+| `@citadela/web` | Citadela web dashboard |
+| `@citadela/connector` | Client installed on managed devices |
 
 ### Services
 
 | Service | Responsibility |
 |---|---|
-| `@citadel/api-gateway` | GraphQL API used by the web application |
-| `@citadel/device-service` | Devices, pairing, metadata and permissions |
-| `@citadel/control-service` | Commands, power management and Wake-on-LAN |
-| `@citadel/realtime-service` | WebSockets, sessions, metrics and terminal streams |
+| `@citadela/api-gateway` | GraphQL API used by the web application |
+| `@citadela/device-service` | Devices, pairing, metadata and permissions |
+| `@citadela/control-service` | Commands, power management and Wake-on-LAN |
+| `@citadela/realtime-service` | WebSockets, sessions, metrics and terminal streams |
 
 ### Packages
 
 | Package | Responsibility |
 |---|---|
-| `@citadel/network` | Network modes and provider contracts for LAN and Headscale |
-| `@citadel/protocol` | Shared communication contracts and validation |
+| `@citadela/network` | Network modes and provider contracts for LAN and Headscale |
+| `@citadela/protocol` | Shared communication contracts and validation |
 
 ---
 
@@ -793,13 +793,13 @@ pnpm >= 10
 
 # Installation
 
-> Citadel is currently under development. Installation steps may change before the first release.
+> Citadela is currently under development. Installation steps may change before the first release.
 
 Clone the repository:
 
 ```bash
-git clone https://github.com/<your-username>/citadel.git
-cd citadel
+git clone https://github.com/<your-username>/citadela.git
+cd citadela
 ```
 
 Install all workspace dependencies:
@@ -821,22 +821,22 @@ pnpm dev
 Or run an individual package:
 
 ```bash
-pnpm --filter @citadel/api-gateway dev
+pnpm --filter @citadela/api-gateway dev
 ```
 
 For example:
 
 ```bash
-pnpm --filter @citadel/web dev
-pnpm --filter @citadel/realtime-service dev
-pnpm --filter @citadel/connector dev
+pnpm --filter @citadela/web dev
+pnpm --filter @citadela/realtime-service dev
+pnpm --filter @citadela/connector dev
 ```
 
 ---
 
 # Infrastructure
 
-Start Citadel infrastructure using Docker Compose:
+Start Citadela infrastructure using Docker Compose:
 
 ```bash
 docker compose up -d
@@ -847,7 +847,7 @@ This will eventually start infrastructure such as:
 ```text
 NGINX
 PostgreSQL
-Citadel services
+Citadela services
 ```
 
 To stop it:
@@ -872,23 +872,23 @@ docker compose logs -f
 
 # pnpm Workspace
 
-Citadel uses `pnpm` workspaces.
+Citadela uses `pnpm` workspaces.
 
 ```yaml
 packages:
-  - "apps/@citadel/*"
-  - "services/@citadel/*"
-  - "packages/@citadel/*"
+  - "apps/@citadela/*"
+  - "services/@citadela/*"
+  - "packages/@citadela/*"
 ```
 
-This allows all Citadel applications, services, and packages to live inside the same repository while maintaining separate dependencies and package boundaries.
+This allows all Citadela applications, services, and packages to live inside the same repository while maintaining separate dependencies and package boundaries.
 
 Internal dependencies can use the workspace protocol:
 
 ```json
 {
   "dependencies": {
-    "@citadel/protocol": "workspace:*"
+    "@citadela/protocol": "workspace:*"
   }
 }
 ```
@@ -899,7 +899,7 @@ For example, both the Connector and Realtime Service can use the same protocol p
 
 # Security
 
-Citadel provides remote control capabilities over connected devices, which makes security a core architectural requirement rather than an optional feature.
+Citadela provides remote control capabilities over connected devices, which makes security a core architectural requirement rather than an optional feature.
 
 The project is being designed around principles such as:
 
@@ -935,7 +935,7 @@ Future versions may introduce additional security features such as:
 
 ### Self-hosted first
 
-Citadel should work without requiring a mandatory third-party cloud service.
+Citadela should work without requiring a mandatory third-party cloud service.
 
 ### Device-centric
 
@@ -947,7 +947,7 @@ Docker, files, processes, services, and future integrations are capabilities of 
 
 Capabilities describe what a device **can** do.
 
-Permissions describe what Citadel **may** do.
+Permissions describe what Citadela **may** do.
 
 ### Modular
 
@@ -955,7 +955,7 @@ Networking, device management, control, realtime communication, and future AI fe
 
 ### Useful without AI
 
-AI orchestration should enhance Citadel rather than define it.
+AI orchestration should enhance Citadela rather than define it.
 
 ### Progressive complexity
 
@@ -965,7 +965,7 @@ The first version should solve local device management well before attempting Re
 
 # Roadmap
 
-## `v0.1` — Local Citadel
+## `v0.1` — Local Citadela
 
 Focus on controlling devices inside the same LAN.
 
@@ -1009,12 +1009,12 @@ Private Mesh
 
 ## `v1.x` — Intelligence
 
-Introduce the Citadel AI harness.
+Introduce the Citadela AI harness.
 
 ```text
 LLM
  ↓
-Citadel Tools
+Citadela Tools
  ↓
 Authorized Devices
 ```
@@ -1023,7 +1023,7 @@ Authorized Devices
 
 # Contributing
 
-Citadel is currently in early development.
+Citadela is currently in early development.
 
 Contribution guidelines will be added as the architecture stabilizes.
 
@@ -1038,6 +1038,6 @@ License information will be added before the first public release.
 ---
 
 <p align="center">
-  <strong>Citadel</strong><br />
+  <strong>Citadela</strong><br />
   One control plane for your devices.
 </p>

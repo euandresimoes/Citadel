@@ -1,0 +1,9 @@
+{
+  "extends": "../../../packages/@citadela/protocol/tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["dist", "node_modules"]
+}

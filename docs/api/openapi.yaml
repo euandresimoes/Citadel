@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
-  title: Citadel Hub REST API
+  title: Citadela Hub REST API
   version: 1.0.0
-  description: State-changing and authentication API for the local Citadel Hub frontend.
+  description: State-changing and authentication API for the local Citadela Hub frontend.
 servers:
   - url: http://127.0.0.1:75523
     description: Local Hub API
@@ -246,11 +246,11 @@ components:
     cookieSession:
       type: apiKey
       in: cookie
-      name: citadel_session
+      name: citadela_session
     csrfHeader:
       type: apiKey
       in: header
-      name: x-citadel-csrf
+      name: x-citadela-csrf
   parameters:
     CommandId:
       name: commandId

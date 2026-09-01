@@ -1,0 +1,11 @@
+{
+  "extends": "../../../packages/@citadela/protocol/tsconfig.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "noEmit": false,
+    "jsx": "react-jsx",
+    "jsxImportSource": "@opentui/react"
+  },
+  "include": ["src"]
+}
