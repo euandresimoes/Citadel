@@ -1,7 +1,11 @@
 .app-shell {
-  min-height: 100vh;
-  display: grid;
-  grid-template-columns: 15rem 1fr;
-  background: var(--color-surface-app);
-  color: var(--color-text-primary);
+  width: 100vw;
+  height: 100vh;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 2rem;
+
+  overflow: hidden;
 }

@@ -1,1 +1,33 @@
-:root { color-scheme: dark; }
+@use "tokens";
+
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+  --color-background-site: #{tokens.$color-background-dark};
+  --color-accent: #{tokens.$color-accent-dark};
+  --color-text-primary: #{tokens.$color-text-primary-dark};
+  --color-text-muted: #{tokens.$color-text-muted-dark};
+  --color-ghost-background: #{tokens.$color-ghost-background-default-dark};
+  --color-ghost-text: #{tokens.$color-ghost-text-default-dark};
+  --color-ghost-background-hover: #{tokens.$color-ghost-background-hover-dark};
+  --color-ghost-text-hover: #{tokens.$color-ghost-text-hover-dark};
+  --color-ghost-background-active: #{tokens.$color-ghost-background-active-dark};
+  --color-ghost-text-active: #{tokens.$color-ghost-text-active-dark};
+  --color-border-default: #{tokens.$color-border-dark};
+  --color-nav-item-default: #{tokens.$color-nav-item-default-dark};
+  --color-nav-item-hover: #{tokens.$color-nav-item-hover-dark};
+  --color-nav-item-hover-text: #{tokens.$color-nav-item-hover-text-dark};
+  --color-nav-item-active: #{tokens.$color-nav-item-active-dark};
+  --color-nav-item-active-text: #{tokens.$color-nav-item-active-text-dark};
+  --sidebar-nav-gap: #{tokens.$sidebar-nav-gap};
+  --sidebar-nav-padding: #{tokens.$sidebar-nav-padding};
+  --sidebar-nav-item-gap: #{tokens.$sidebar-nav-item-gap};
+  --sidebar-nav-item-padding-block: #{tokens.$sidebar-nav-item-padding-block};
+  --sidebar-nav-item-padding-inline: #{tokens.$sidebar-nav-item-padding-inline};
+  --sidebar-nav-icon-size: #{tokens.$sidebar-nav-icon-size};
+  --sidebar-nav-label-size: #{tokens.$sidebar-nav-label-size};
+}
+
+body {
+  background-color: var(--color-background-site);
+}
