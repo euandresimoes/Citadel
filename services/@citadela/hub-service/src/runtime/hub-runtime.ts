@@ -82,7 +82,6 @@ export class HubRuntime {
   }
 
   public async ready(): Promise<void> {
-    await this.deviceRegistry.markAllOffline(new Date());
     if (this.databasePool) {
       if (!this.migrationsDirectory && !this.usesCommandRepository) throw new Error("migrationsDirectory is required for command persistence");
       if (this.usesProfileRepository && !this.migrationsDirectory) throw new Error("migrationsDirectory is required for profile persistence");
@@ -90,6 +89,7 @@ export class HubRuntime {
       if (this.deviceMigrationsDirectory) await runMigrations(this.databasePool, this.deviceMigrationsDirectory);
       if (this.migrationsDirectory) await runMigrations(this.databasePool, this.migrationsDirectory);
     }
+    await this.deviceRegistry.markAllOffline(new Date());
     await Promise.all([this.realtime.ready(), this.api.ready()]);
   }
 
