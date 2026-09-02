@@ -8,7 +8,7 @@ Install the **Citadela Hub** on your main machine, connect other devices using t
 
 ```text
                     Citadela Hub
-                  http://localhost:75523
+                  http://localhost:5523
                            │
               ┌────────────┼────────────┐
               │            │            │
@@ -109,7 +109,7 @@ The system is divided into three main areas:
 ```text
                                 Citadela
 
-                           localhost:75523
+                           localhost:5523
                                  │
                                NGINX
                                  │
@@ -154,7 +154,7 @@ It is responsible for:
 By default, the dashboard is intended to run locally at:
 
 ```text
-http://localhost:75523
+http://localhost:5523
 ```
 
 The Hub Application Service coordinates command authorization and dispatch. A
@@ -692,7 +692,6 @@ Citadela/
 │
 ├── services/
 │   └── @citadela/
-│       ├── api-gateway/
 │       ├── device-service/
 │       ├── control-service/
 │       └── realtime-service/
@@ -733,7 +732,6 @@ Citadela/
 
 | Service | Responsibility |
 |---|---|
-| `@citadela/api-gateway` | GraphQL API used by the web application |
 | `@citadela/device-service` | Devices, pairing, metadata and permissions |
 | `@citadela/control-service` | Commands, power management and Wake-on-LAN |
 | `@citadela/realtime-service` | WebSockets, sessions, metrics and terminal streams |
@@ -756,7 +754,7 @@ Citadela/
 | Package Manager | pnpm |
 | Monorepo | pnpm Workspaces |
 | Web | React + Vite |
-| API Gateway | Node.js HTTP server |
+| API Gateway | NGINX reverse proxy |
 | Client API | GraphQL |
 | GraphQL Server | Apollo Server |
 | Internal APIs | REST |
@@ -813,16 +811,21 @@ pnpm install
 
 # Development
 
-Run all workspace applications and services:
+Run the local gateway, Hub, PostgreSQL and web application together:
 
 ```bash
 pnpm dev
 ```
 
+The development gateway is available at `http://localhost:5523`. It proxies the
+web application, Hub REST/GraphQL endpoints, and Realtime WebSocket path. The
+Hub remains internal on port `4174`, Realtime on `4175`, and the isolated
+development PostgreSQL instance on `5433`.
+
 Or run an individual package:
 
 ```bash
-pnpm --filter @citadela/api-gateway dev
+docker compose -f infrastructure/docker-compose.yml up -d gateway
 ```
 
 For example:

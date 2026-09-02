@@ -7,7 +7,7 @@
     "dev": "pnpm build && pnpm dev:prepare && concurrently --kill-others-on-fail --names HUB,WEB --prefix-colors blue,green \"pnpm dev:hub\" \"node scripts/dev/wait-hub.mjs && pnpm dev:web\"",
     "dev:prepare": "node scripts/dev/prepare.mjs",
     "dev:hub": "node scripts/dev/start-hub.mjs",
-    "dev:web": "pnpm --dir apps/@citadela/web dev -- --host 127.0.0.1 --port 5173",
+    "dev:web": "pnpm --dir apps/@citadela/web exec vite --host 0.0.0.0 --port 5173",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r build && pnpm -r typecheck",
     "test": "pnpm -r test"
