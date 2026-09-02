@@ -32,6 +32,12 @@ test("creates a profile and navigates between Dashboard and Devices through the 
     await expect(page).toHaveURL(/\/devices\/e2e-raspberry$/);
     await expect(page.getByRole("heading", { name: "e2e-raspberry" })).toBeVisible();
     await expect(page.getByText("Hostname")).toBeVisible();
+    await page.getByRole("button", { name: "Restart" }).click();
+    const confirmation = page.getByRole("dialog", { name: "Restart device?" });
+    await expect(confirmation).toBeVisible();
+    await confirmation.getByRole("button", { name: "Restart", exact: true }).click();
+    await expect(page.getByRole("status")).toContainText("dispatched");
+    await expect(page.getByRole("list", { name: "Command history" })).toContainText("device.system.power.restart");
   } finally {
     connector.close();
   }

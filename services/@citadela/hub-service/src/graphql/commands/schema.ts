@@ -13,5 +13,6 @@ export const typeDefs = `#graphql
 
   extend type Query {
     command(id: ID!): Command
+    commands(deviceId: ID!, limit: Int = 50): [Command!]!
   }
 `;

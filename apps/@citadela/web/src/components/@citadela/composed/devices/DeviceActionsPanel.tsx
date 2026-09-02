@@ -15,6 +15,9 @@ function DeviceActionsPanel({ deviceId, online }: { deviceId: string; online: bo
   const { commands, error, acting, create, confirm } = useDeviceCommands(deviceId);
   const [selected, setSelected] = useState<typeof actions[number] | null>(null);
   const [pendingCommand, setPendingCommand] = useState<CommandRecord | null>(null);
+  const [stateFilter, setStateFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const visibleCommands = commands.filter((command) => (stateFilter === "all" || command.state === stateFilter) && (typeFilter === "all" || command.type === typeFilter));
 
   const choose = async (action: typeof actions[number]) => {
     const requested = await create(action.type);
@@ -29,7 +32,11 @@ function DeviceActionsPanel({ deviceId, online }: { deviceId: string; online: bo
     </div>}
     {error ? <p role="alert">{error.message}</p> : null}
     {pendingCommand ? <p role="status">{pendingCommand.type.split(".").at(-1)}: {pendingCommand.state}</p> : null}
-    {commands.length > 0 ? <ul aria-label="Command history">{commands.map((command) => <li key={command.id}>{command.type}: {command.state}{command.error ? ` — ${command.error}` : ""}</li>)}</ul> : null}
+    <section aria-labelledby="command-history-title"><h4 id="command-history-title">Command history</h4>
+      <label>State <select value={stateFilter} onChange={(event) => setStateFilter(event.target.value)}><option value="all">All</option><option value="awaiting_confirmation">Awaiting confirmation</option><option value="dispatched">Dispatched</option><option value="succeeded">Succeeded</option><option value="failed">Failed</option><option value="expired">Expired</option></select></label>
+      <label>Action <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}><option value="all">All</option>{actions.map((action) => <option key={action.type} value={action.type}>{action.label}</option>)}</select></label>
+      {visibleCommands.length > 0 ? <ul aria-label="Command history">{visibleCommands.map((command) => <li key={command.id}>{command.type}: {command.state} · {new Date(command.createdAt).toLocaleString()}{command.error ? ` — ${command.error}` : ""}</li>)}</ul> : <p>No commands match the selected filters.</p>}
+    </section>
     <ConfirmationDialog open={selected !== null} title={selected?.title ?? "Confirm action"} message={selected?.message ?? "Confirm this action."} confirmLabel={selected?.label} onCancel={() => setSelected(null)} onConfirm={async () => { if (selected) await choose(selected); }} />
   </section>;
 }

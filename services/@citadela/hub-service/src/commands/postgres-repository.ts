@@ -54,6 +54,14 @@ export class PostgresCommandRepository implements CommandRepository {
       [record.command.id, record.state, record.confirmedAt ?? null, record.completedAt ?? null, record.error ?? null],
     );
   }
+
+  public async listByDevice(deviceId: string, limit: number): Promise<CommandRecord[]> {
+    const result = await this.pool.query<CommandRow>(
+      `SELECT command_id, device_id, command_type, command_payload, actor_id, state, created_at, expires_at, confirmed_at, completed_at, error FROM hub_commands WHERE device_id = $1 ORDER BY created_at DESC LIMIT $2`,
+      [deviceId, limit],
+    );
+    return result.rows.map(recordFromRow);
+  }
 }
 
 export function createPostgresCommandPool(connectionString: string): Pool {

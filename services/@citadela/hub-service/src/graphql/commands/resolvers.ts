@@ -7,5 +7,6 @@ export const resolvers = {
       const command = await context.commandService.get(args.id);
       return command ? commandView(command) : null;
     },
+    commands: async (_parent: unknown, args: { deviceId: string; limit?: number }, context: HubGraphqlContext) => (await context.commandService.listByDevice(args.deviceId, args.limit ?? 50)).map(commandView),
   },
 };

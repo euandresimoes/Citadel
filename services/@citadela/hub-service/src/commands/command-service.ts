@@ -26,6 +26,7 @@ export interface CommandRepository {
   save(record: CommandRecord): Promise<void>;
   get(commandId: string): Promise<CommandRecord | undefined>;
   update(record: CommandRecord): Promise<void>;
+  listByDevice(deviceId: DeviceId, limit: number): Promise<CommandRecord[]>;
 }
 
 export type CommandChangeListener = (record: CommandRecord) => void;
@@ -36,6 +37,9 @@ export class InMemoryCommandRepository implements CommandRepository {
   public async save(record: CommandRecord): Promise<void> { this.records.set(record.command.id, record); }
   public async get(commandId: string): Promise<CommandRecord | undefined> { return this.records.get(commandId); }
   public async update(record: CommandRecord): Promise<void> { this.records.set(record.command.id, record); }
+  public async listByDevice(deviceId: DeviceId, limit: number): Promise<CommandRecord[]> {
+    return [...this.records.values()].filter((record) => record.command.deviceId === deviceId).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, limit);
+  }
 }
 
 export class CommandAuthorizationError extends Error {
@@ -125,6 +129,10 @@ export class HubCommandService {
       if (previousState !== record.state) this.emit(record);
     }
     return record;
+  }
+
+  public async listByDevice(deviceId: DeviceId, limit = 50): Promise<CommandRecord[]> {
+    return this.repository.listByDevice(deviceId, Math.min(Math.max(limit, 1), 100));
   }
 
   private async requireRecord(commandId: string): Promise<CommandRecord> {

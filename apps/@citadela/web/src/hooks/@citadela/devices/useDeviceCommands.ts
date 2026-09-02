@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { hubApi, type CommandRecord, type DevicePowerAction } from "../../../services/@citadela/hub/hubApi";
+import { query } from "../../../services/@citadela/hub/graphqlClient";
 
 export function useDeviceCommands(deviceId: string) {
   const [commands, setCommands] = useState<CommandRecord[]>([]);
@@ -21,6 +22,7 @@ export function useDeviceCommands(deviceId: string) {
   }, [track]);
 
   useEffect(() => {
+    void query<{ commands: CommandRecord[] }>(`query DeviceCommands($deviceId: ID!, $limit: Int) { commands(deviceId: $deviceId, limit: $limit) { id deviceId type state createdAt expiresAt confirmedAt completedAt error } }`, { deviceId, limit: 50 }).then((data) => setCommands(Array.isArray(data.commands) ? data.commands : [])).catch((cause: unknown) => setError(cause instanceof Error ? cause : new Error("Unable to load command history")));
     if (typeof EventSource === "undefined") return;
     const events = new EventSource("/api/v1/events");
     const update = (event: Event) => {
