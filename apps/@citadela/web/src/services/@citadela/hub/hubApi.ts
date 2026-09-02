@@ -10,6 +10,9 @@ export interface HubSetupStatus {
   configured: boolean;
 }
 
+export interface HubProfile { id: string; displayName: string; avatarBase64: string | null; totpEnabled: boolean; }
+export interface TotpEnrollment { otpauthUri: string; qrCodeDataUrl: string; }
+
 export interface PairingRequest {
   requestId: string;
   deviceId: string;
@@ -56,22 +59,28 @@ export const hubApi = {
     body: JSON.stringify(input),
   }),
   getSession: (): Promise<HubSession> => request<HubSession>("/api/v1/auth/session"),
+  getProfile: (): Promise<HubProfile> => request<HubProfile>("/api/v1/auth/profile"),
+  updateProfile: (input: { displayName?: string; avatarBase64?: string | null }): Promise<HubProfile> => request<HubProfile>("/api/v1/auth/profile", { method: "PATCH", headers: csrfHeaders(), body: JSON.stringify(input) }),
+  changePassword: (currentPassword: string, newPassword: string): Promise<void> => request<void>("/api/v1/auth/password", { method: "POST", headers: csrfHeaders(), body: JSON.stringify({ currentPassword, newPassword }) }),
+  beginTotpEnrollment: (): Promise<TotpEnrollment> => request<TotpEnrollment>("/api/v1/auth/totp/enroll", { method: "POST", headers: csrfHeaders() }),
+  confirmTotpEnrollment: (token: string): Promise<{ recoveryCodes: string[] }> => request<{ recoveryCodes: string[] }>("/api/v1/auth/totp/confirm", { method: "POST", headers: csrfHeaders(), body: JSON.stringify({ token }) }),
+  disableTotp: (password: string): Promise<void> => request<void>("/api/v1/auth/totp/disable", { method: "POST", headers: csrfHeaders(), body: JSON.stringify({ password }) }),
   login: (method: "password" | "otp", credential: string): Promise<void> => request<void>("/api/v1/auth/login", {
     method: "POST",
     body: JSON.stringify({ method, credential }),
   }),
   logout: (): Promise<void> => request<void>("/api/v1/auth/logout", {
     method: "POST",
-    headers: { "x-citadela-csrf": readCookie("citadela_csrf") ?? "" },
+    headers: csrfHeaders(),
   }),
   listPairingRequests: (): Promise<PairingRequest[]> => request<PairingRequest[]>("/api/v1/pairing/requests"),
   approvePairing: (requestId: string): Promise<void> => pairingAction(requestId, "approve"),
   rejectPairing: (requestId: string): Promise<void> => pairingAction(requestId, "reject"),
   createCommand: (deviceId: string, type: DevicePowerAction): Promise<CommandRecord> => request<CommandRecord>("/api/v1/commands", {
-    method: "POST", headers: { "x-citadela-csrf": readCookie("citadela_csrf") ?? "" }, body: JSON.stringify({ deviceId, type }),
+    method: "POST", headers: csrfHeaders(), body: JSON.stringify({ deviceId, type }),
   }),
   confirmCommand: (commandId: string): Promise<CommandRecord> => request<CommandRecord>(`/api/v1/commands/${encodeURIComponent(commandId)}/confirm`, {
-    method: "POST", headers: { "x-citadela-csrf": readCookie("citadela_csrf") ?? "" },
+    method: "POST", headers: csrfHeaders(),
   }),
   getCommand: (commandId: string): Promise<CommandRecord> => request<CommandRecord>(`/api/v1/commands/${encodeURIComponent(commandId)}`),
 };
@@ -79,9 +88,11 @@ export const hubApi = {
 function pairingAction(requestId: string, action: "approve" | "reject"): Promise<void> {
   return request<void>(`/api/v1/pairing/requests/${encodeURIComponent(requestId)}/${action}`, {
     method: "POST",
-    headers: { "x-citadela-csrf": readCookie("citadela_csrf") ?? "" },
+    headers: csrfHeaders(),
   });
 }
+
+function csrfHeaders(): Record<string, string> { return { "x-citadela-csrf": readCookie("citadela_csrf") ?? "" }; }
 
 function readCookie(name: string): string | undefined {
   const cookie = document.cookie.split("; ").find((entry) => entry.startsWith(`${name}=`));

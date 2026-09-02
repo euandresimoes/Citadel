@@ -42,6 +42,11 @@ export interface TotpEnrollment {
   qrCodeDataUrl: string;
 }
 
+export interface ProfileUpdateInput {
+  displayName?: string;
+  avatarBase64?: string | null;
+}
+
 export class ProfileAlreadyConfiguredError extends Error {}
 export class InvalidCredentialsError extends Error {}
 
@@ -57,6 +62,27 @@ export class ProfileAuthenticationService {
   public async isConfigured(): Promise<boolean> { return Boolean(await this.repository.get()); }
 
   public async getProfile(): Promise<HubProfile | undefined> { return this.repository.get(); }
+
+  public async updateProfile(input: ProfileUpdateInput): Promise<HubProfile> {
+    const profile = await this.requireProfile();
+    if (input.displayName !== undefined) profile.displayName = input.displayName.trim() || "Admin";
+    if (input.avatarBase64 !== undefined) {
+      if (input.avatarBase64 === null) delete profile.avatarBase64;
+      else profile.avatarBase64 = validateAvatar(input.avatarBase64);
+    }
+    profile.updatedAt = new Date();
+    await this.repository.update(profile);
+    return profile;
+  }
+
+  public async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    const profile = await this.requireProfile();
+    if (!(await verifySecret(currentPassword, profile.passwordHash))) throw new InvalidCredentialsError("Invalid current password");
+    if (newPassword.length < 12) throw new Error("Password must contain at least 12 characters");
+    profile.passwordHash = await hashSecret(newPassword);
+    profile.updatedAt = new Date();
+    await this.repository.update(profile);
+  }
 
   public async createProfile(input: ProfileSetupInput): Promise<HubProfile> {
     if (await this.isConfigured()) throw new ProfileAlreadyConfiguredError("Hub profile is already configured");
@@ -97,6 +123,17 @@ export class ProfileAuthenticationService {
     profile.updatedAt = new Date();
     await this.repository.update(profile);
     return recoveryCodes;
+  }
+
+  public async disableTotp(password: string): Promise<void> {
+    const profile = await this.requireProfile();
+    if (!(await verifySecret(password, profile.passwordHash))) throw new InvalidCredentialsError("Invalid password");
+    if (!profile.totpSecretEncrypted) throw new Error("OTP authentication is not enabled");
+    delete profile.totpSecretEncrypted;
+    delete profile.pendingTotpSecretEncrypted;
+    profile.recoveryCodeHashes = [];
+    profile.updatedAt = new Date();
+    await this.repository.update(profile);
   }
 
   public async authenticate(method: "password" | "otp", credential: string): Promise<{ actorId: string; profile: HubProfile }> {

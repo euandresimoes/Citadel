@@ -1,0 +1,6 @@
+.profile-settings { padding: 24px; max-width: 720px; }
+.profile-settings form, .profile-settings section { display: grid; gap: 12px; margin: 24px 0; }
+.profile-settings label { display: grid; gap: 6px; }
+.profile-settings input { padding: 8px; }
+.profile-settings__avatar { width: 64px; height: 64px; object-fit: cover; border-radius: 50%; }
+.profile-settings code, .profile-settings pre { overflow: auto; }

@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
 import "./SidebarNav.scss";
-import { PiDeviceTabletSpeaker, PiHouse } from "react-icons/pi";
+import { PiDeviceTabletSpeaker, PiHouse, PiGear } from "react-icons/pi";
 import { useCurrentRoute } from "../../../../../../hooks/@citadela/routing/useCurrentRoute";
 import { useNavigation } from "../../../../../../hooks/@citadela/routing/useNavigation";
 
@@ -21,6 +21,7 @@ const NavItems: NavItem[] = [
     label: "Devices",
     route: "/devices",
   },
+  { icon: <PiGear className="app-sidebar-nav-icon" />, label: "Settings", route: "/settings/profile" },
 ];
 
 function SidebarNav() {

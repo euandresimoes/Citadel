@@ -91,8 +91,11 @@ export class HubHttpServer {
       sendJson(response, 200, profile ? { id: profile.id, displayName: profile.displayName, avatarBase64: profile.avatarBase64 ?? null, totpEnabled: Boolean(profile.totpSecretEncrypted) } : { error: "Profile is not configured" });
       return;
     }
+    if (request.method === "PATCH" && url.pathname === "/api/v1/auth/profile") { if (!session) { sendJson(response, 401, { error: "Unauthorized" }); return; } await this.updateProfile(request, response, session); return; }
+    if (request.method === "POST" && url.pathname === "/api/v1/auth/password") { if (!session) { sendJson(response, 401, { error: "Unauthorized" }); return; } await this.changePassword(request, response, session); return; }
     if (request.method === "POST" && url.pathname === "/api/v1/auth/totp/enroll") { if (!session) { sendJson(response, 401, { error: "Unauthorized" }); return; } await this.enrollTotp(request, response, session); return; }
     if (request.method === "POST" && url.pathname === "/api/v1/auth/totp/confirm") { if (!session) { sendJson(response, 401, { error: "Unauthorized" }); return; } await this.confirmTotp(request, response, session); return; }
+    if (request.method === "POST" && url.pathname === "/api/v1/auth/totp/disable") { if (!session) { sendJson(response, 401, { error: "Unauthorized" }); return; } await this.disableTotp(request, response, session); return; }
     if (request.method === "POST" && url.pathname === "/api/v1/auth/logout") {
       if (!session) { sendJson(response, 401, { error: "Unauthorized" }); return; }
       if (!this.options.sessions.csrfValid(request, session)) { sendJson(response, 403, { error: "Invalid CSRF token" }); return; }
@@ -160,6 +163,27 @@ export class HubHttpServer {
     sendJson(response, 200, await this.options.profileAuth.beginTotpEnrollment());
   }
 
+  private async updateProfile(request: IncomingMessage, response: ServerResponse, session: { actorId: string; csrfToken: string }): Promise<void> {
+    if (!this.options.profileAuth) { sendJson(response, 404, { error: "Profile authentication is unavailable" }); return; }
+    if (!this.options.sessions.csrfValid(request, session)) { sendJson(response, 403, { error: "Invalid CSRF token" }); return; }
+    const body = await readJson(request);
+    if (body?.displayName !== undefined && typeof body.displayName !== "string") { sendJson(response, 400, { error: "displayName must be a string" }); return; }
+    if (body?.avatarBase64 !== undefined && body.avatarBase64 !== null && typeof body.avatarBase64 !== "string") { sendJson(response, 400, { error: "avatarBase64 must be a string or null" }); return; }
+    try {
+      const profile = await this.options.profileAuth.updateProfile({ ...(typeof body?.displayName === "string" ? { displayName: body.displayName } : {}), ...(body?.avatarBase64 === null ? { avatarBase64: null } : typeof body?.avatarBase64 === "string" ? { avatarBase64: body.avatarBase64 } : {}) });
+      sendJson(response, 200, { id: profile.id, displayName: profile.displayName, avatarBase64: profile.avatarBase64 ?? null, totpEnabled: Boolean(profile.totpSecretEncrypted) });
+    } catch (error) { sendJson(response, 400, { error: error instanceof Error ? error.message : "Unable to update profile" }); }
+  }
+
+  private async changePassword(request: IncomingMessage, response: ServerResponse, session: { actorId: string; csrfToken: string }): Promise<void> {
+    if (!this.options.profileAuth) { sendJson(response, 404, { error: "Profile authentication is unavailable" }); return; }
+    if (!this.options.sessions.csrfValid(request, session)) { sendJson(response, 403, { error: "Invalid CSRF token" }); return; }
+    const body = await readJson(request);
+    if (typeof body?.currentPassword !== "string" || typeof body.newPassword !== "string") { sendJson(response, 400, { error: "currentPassword and newPassword are required" }); return; }
+    try { await this.options.profileAuth.changePassword(body.currentPassword, body.newPassword); response.writeHead(204).end(); }
+    catch (error) { sendJson(response, error instanceof InvalidCredentialsError ? 401 : 400, { error: error instanceof Error ? error.message : "Unable to change password" }); }
+  }
+
   private async confirmTotp(request: IncomingMessage, response: ServerResponse, session: { actorId: string; csrfToken: string }): Promise<void> {
     if (!this.options.profileAuth) { sendJson(response, 404, { error: "Profile authentication is unavailable" }); return; }
     if (!this.options.sessions.csrfValid(request, session)) { sendJson(response, 403, { error: "Invalid CSRF token" }); return; }
@@ -167,6 +191,15 @@ export class HubHttpServer {
     if (typeof body?.token !== "string") { sendJson(response, 400, { error: "token is required" }); return; }
     try { sendJson(response, 200, { recoveryCodes: await this.options.profileAuth.confirmTotpEnrollment(body.token) }); }
     catch (error) { sendJson(response, 400, { error: error instanceof Error ? error.message : "Unable to confirm OTP" }); }
+  }
+
+  private async disableTotp(request: IncomingMessage, response: ServerResponse, session: { actorId: string; csrfToken: string }): Promise<void> {
+    if (!this.options.profileAuth) { sendJson(response, 404, { error: "Profile authentication is unavailable" }); return; }
+    if (!this.options.sessions.csrfValid(request, session)) { sendJson(response, 403, { error: "Invalid CSRF token" }); return; }
+    const body = await readJson(request);
+    if (typeof body?.password !== "string") { sendJson(response, 400, { error: "password is required" }); return; }
+    try { await this.options.profileAuth.disableTotp(body.password); response.writeHead(204).end(); }
+    catch (error) { sendJson(response, error instanceof InvalidCredentialsError ? 401 : 400, { error: error instanceof Error ? error.message : "Unable to disable OTP" }); }
   }
 
   private async graphqlRequest(request: IncomingMessage, response: ServerResponse, session: { actorId: string }): Promise<void> {
