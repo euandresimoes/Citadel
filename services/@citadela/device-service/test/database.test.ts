@@ -27,7 +27,7 @@ describe("database migrations", () => {
     const firstRunStatements = queries.length;
     await runMigrations(pool, migrationsDirectory);
 
-    expect(applied).toEqual(new Set(["001_device_pairings.sql", "002_devices.sql", "003_metrics.sql"]));
+    expect(applied).toEqual(new Set(["001_device_pairings.sql", "002_devices.sql", "003_metrics.sql", "004_device_access.sql"]));
     expect(queries.filter((query) => query.includes("CREATE TABLE IF NOT EXISTS device_pairings"))).toHaveLength(1);
     expect(queries.filter((query) => query.includes("CREATE TABLE IF NOT EXISTS devices"))).toHaveLength(1);
     expect(queries.length).toBeGreaterThan(firstRunStatements);

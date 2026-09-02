@@ -10,6 +10,8 @@ export interface Device {
   lastHeartbeat: string;
   systemInfo?: SystemInfo;
   metrics?: SystemMetrics;
+  capabilities: string[];
+  permissions: string[];
 }
 
 export interface SystemInfo {
@@ -26,10 +28,10 @@ interface DevicesQueryData {
   devices: Device[];
 }
 
-const devicesQuery = `query Devices { devices { id status networkMode connectionId connectedAt lastHeartbeat systemInfo { hostname platform architecture cpuCount memoryBytes uptimeSeconds } metrics { cpuLoadPercent memoryUsedBytes memoryTotalBytes collectedAt } } }`;
+const devicesQuery = `query Devices { devices { id status networkMode connectionId connectedAt lastHeartbeat capabilities permissions systemInfo { hostname platform architecture cpuCount memoryBytes uptimeSeconds } metrics { cpuLoadPercent memoryUsedBytes memoryTotalBytes collectedAt } } }`;
 
 export async function getDevice(deviceId: string): Promise<Device | null> {
-  const data = await query<{ device: Device | null }>(`query Device($id: ID!) { device(id: $id) { id status networkMode connectionId connectedAt lastHeartbeat systemInfo { hostname platform architecture cpuCount memoryBytes uptimeSeconds } metrics { cpuLoadPercent memoryUsedBytes memoryTotalBytes collectedAt } } }`, { id: deviceId });
+  const data = await query<{ device: Device | null }>(`query Device($id: ID!) { device(id: $id) { id status networkMode connectionId connectedAt lastHeartbeat capabilities permissions systemInfo { hostname platform architecture cpuCount memoryBytes uptimeSeconds } metrics { cpuLoadPercent memoryUsedBytes memoryTotalBytes collectedAt } } }`, { id: deviceId });
   return data.device;
 }
 

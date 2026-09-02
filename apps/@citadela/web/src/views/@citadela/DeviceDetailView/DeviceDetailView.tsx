@@ -27,7 +27,8 @@ function DeviceDetailView({ deviceId }: DeviceDetailViewProps) {
   return <section aria-labelledby="device-detail-title">
     <h2 id="device-detail-title">{device.id}</h2>
     <p>{device.networkMode} · {device.status === "online" ? "Connected" : "Offline"}</p>
-    <DeviceActionsPanel deviceId={device.id} online={device.status === "online"} />
+    <DeviceActionsPanel deviceId={device.id} online={device.status === "online"} capabilities={device.capabilities} permissions={device.permissions} />
+    <p>Network provider: {device.networkMode === "lan" ? "LAN" : "Headscale"}</p>
     <ButtonDelete type="button" onClick={() => setRevokeOpen(true)}>Revoke device</ButtonDelete>
     <ConfirmationDialog open={revokeOpen} title="Revoke device" message="This permanently removes the device pairing and disconnects it." confirmLabel="Revoke" onCancel={() => setRevokeOpen(false)} onConfirm={async () => { await hubApi.revokeDevice(device.id); setRevokeOpen(false); setRevoked(true); }} />
     <button type="button" onClick={() => void refreshSystemInfo()} disabled={!device || device.status !== "online" || refreshing}>{refreshing ? "Refreshing…" : "Refresh system information"}</button>

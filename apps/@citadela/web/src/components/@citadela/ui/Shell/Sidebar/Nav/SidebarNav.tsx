@@ -21,7 +21,8 @@ const NavItems: NavItem[] = [
     label: "Devices",
     route: "/devices",
   },
-  { icon: <PiGear className="app-sidebar-nav-icon" />, label: "Settings", route: "/settings/profile" },
+  { icon: <PiGear className="app-sidebar-nav-icon" />, label: "Profile", route: "/settings/profile" },
+  { icon: <PiGear className="app-sidebar-nav-icon" />, label: "Network", route: "/settings/network" },
 ];
 
 function SidebarNav() {

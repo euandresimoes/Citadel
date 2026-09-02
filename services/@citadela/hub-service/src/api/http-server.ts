@@ -9,6 +9,7 @@ import { ProfileAuthenticationService, InvalidCredentialsError } from "../auth/p
 import { HubEventBus } from "../events/event-bus.js";
 import { HubGraphqlServer } from "../graphql/server.js";
 import { commandView, RealtimeDeviceDirectory, type HubReadModel, type HubSessionSource } from "../graphql/context.js";
+import { NetworkProviderManager, type ProviderConfig } from "../network/provider-manager.js";
 
 export interface HubHttpServerOptions {
   host?: string;
@@ -20,6 +21,7 @@ export interface HubHttpServerOptions {
   events?: HubEventBus;
   pairing?: PairingService;
   profileAuth?: ProfileAuthenticationService;
+  networkProviders?: NetworkProviderManager;
 }
 
 export class HubHttpServer {
@@ -28,9 +30,11 @@ export class HubHttpServer {
   private readonly events: HubEventBus;
   private readonly readModel: HubReadModel;
   private readonly unsubscribeSources: Array<() => void> = [];
+  private readonly networkProviders: NetworkProviderManager;
 
   public constructor(private readonly options: HubHttpServerOptions) {
     this.events = options.events ?? new HubEventBus();
+    this.networkProviders = options.networkProviders ?? new NetworkProviderManager();
     this.readModel = options.readModel ?? (options.realtime ? new RealtimeDeviceDirectory(options.realtime) : { listDevices: async () => [] });
     if (options.realtime) {
       this.unsubscribeSources.push(options.realtime.subscribeSessionEvents((event) => {
@@ -106,6 +110,8 @@ export class HubHttpServer {
     if (!session) { sendJson(response, 401, { error: "Unauthorized" }); return; }
     if (url.pathname === "/graphql") { await this.graphqlRequest(request, response, session); return; }
     if (url.pathname === "/api/v1/events" && request.method === "GET") { this.eventsRequest(request, response); return; }
+    if (url.pathname === "/api/v1/network/providers" && request.method === "GET") { sendJson(response, 200, this.networkProviders.list()); return; }
+    if (url.pathname === "/api/v1/network/providers" && request.method === "PUT") { await this.configureProvider(request, response, session); return; }
     if (url.pathname === "/api/v1/pairing/requests" && request.method === "GET") { await this.listPairing(response); return; }
     const pairingAction = url.pathname.match(/^\/api\/v1\/pairing\/requests\/([^/]+)\/(approve|reject)$/);
     if (request.method === "POST" && pairingAction?.[1] && pairingAction[2]) {
@@ -232,6 +238,14 @@ export class HubHttpServer {
       const record = await this.options.commands.request(actorId, { deviceId: body.deviceId, type: body.type } as Omit<Command, "id">);
       sendJson(response, 202, viewCommand(record));
     } catch (error) { sendJson(response, error instanceof Error && error.name === "CommandAuthorizationError" ? 403 : 400, { error: error instanceof Error ? error.message : "Invalid command" }); }
+  }
+
+  private async configureProvider(request: IncomingMessage, response: ServerResponse, session: { csrfToken: string }): Promise<void> {
+    if (!this.options.sessions.csrfValid(request, session)) { sendJson(response, 403, { error: "Invalid CSRF token" }); return; }
+    const body = await readJson(request);
+    if (body?.mode !== "lan" && body?.mode !== "headscale" || typeof body?.enabled !== "boolean") { sendJson(response, 400, { error: "mode and enabled are required" }); return; }
+    try { sendJson(response, 200, this.networkProviders.configure({ mode: body.mode, enabled: body.enabled, ...(typeof body.endpoint === "string" ? { endpoint: body.endpoint } : {}), ...(typeof body.controlPlaneUrl === "string" ? { controlPlaneUrl: body.controlPlaneUrl } : {}) } as ProviderConfig)); }
+    catch (error) { sendJson(response, 400, { error: error instanceof Error ? error.message : "Unable to configure provider" }); }
   }
 
   private async listPairing(response: ServerResponse): Promise<void> {

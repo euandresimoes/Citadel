@@ -12,6 +12,7 @@ export interface HubSetupStatus {
 
 export interface HubProfile { id: string; displayName: string; avatarBase64: string | null; totpEnabled: boolean; }
 export interface TotpEnrollment { otpauthUri: string; qrCodeDataUrl: string; }
+export interface ProviderConfig { mode: "lan" | "headscale"; enabled: boolean; endpoint?: string; controlPlaneUrl?: string; }
 
 export interface PairingRequest {
   requestId: string;
@@ -66,6 +67,8 @@ export const hubApi = {
   beginTotpEnrollment: (): Promise<TotpEnrollment> => request<TotpEnrollment>("/api/v1/auth/totp/enroll", { method: "POST", headers: csrfHeaders() }),
   confirmTotpEnrollment: (token: string): Promise<{ recoveryCodes: string[] }> => request<{ recoveryCodes: string[] }>("/api/v1/auth/totp/confirm", { method: "POST", headers: csrfHeaders(), body: JSON.stringify({ token }) }),
   disableTotp: (password: string): Promise<void> => request<void>("/api/v1/auth/totp/disable", { method: "POST", headers: csrfHeaders(), body: JSON.stringify({ password }) }),
+  listProviders: (): Promise<ProviderConfig[]> => request<ProviderConfig[]>("/api/v1/network/providers"),
+  configureProvider: (input: ProviderConfig): Promise<ProviderConfig> => request<ProviderConfig>("/api/v1/network/providers", { method: "PUT", headers: csrfHeaders(), body: JSON.stringify(input) }),
   login: (method: "password" | "otp", credential: string): Promise<void> => request<void>("/api/v1/auth/login", {
     method: "POST",
     body: JSON.stringify({ method, credential }),

@@ -26,6 +26,7 @@ export interface RealtimeServiceOptions {
   onMessage?: (deviceId: string, message: CitadelaMessage) => void;
   onSessionEvent?: SessionEventListener;
   deviceRegistry?: DeviceRegistry;
+  metricsIntervalMs?: number;
 }
 
 export interface DeviceSession {
@@ -38,6 +39,8 @@ export interface DeviceSession {
   socket: WebSocketConnection;
   systemInfo?: SystemInfo;
   metrics?: SystemMetrics;
+  capabilities: DeviceHelloMessage["device"]["capabilities"];
+  permissions: DeviceHelloMessage["device"]["permissions"];
 }
 
 export type SessionEvent =
@@ -56,12 +59,14 @@ export class RealtimeService {
   private readonly onMessage: RealtimeServiceOptions["onMessage"];
   private readonly onSessionEvent: RealtimeServiceOptions["onSessionEvent"];
   private readonly deviceRegistry: DeviceRegistry | undefined;
+  private readonly metricsInterval: NodeJS.Timeout;
 
   public constructor(options: RealtimeServiceOptions) {
     this.pairing = options.pairing;
     this.onMessage = options.onMessage;
     this.onSessionEvent = options.onSessionEvent;
     this.deviceRegistry = options.deviceRegistry;
+    this.metricsInterval = setInterval(() => { for (const session of this.sessions.values()) this.requestMetrics(session.deviceId); }, Math.max(10_000, options.metricsIntervalMs ?? 30_000));
     if (options.tls) {
       this.listener = createHttpsServer(options.tls);
       this.server = new WebSocketServer({ server: this.listener });
@@ -129,6 +134,7 @@ export class RealtimeService {
   public requestMetrics(deviceId: string): boolean { return this.sendCommand(deviceId, { id: randomUUID(), type: "device.system.metrics.request", deviceId }); }
 
   public async close(): Promise<void> {
+    clearInterval(this.metricsInterval);
     const closedAt = new Date();
     await Promise.all([...this.sessions.values()].map((session) => this.deviceRegistry?.markDisconnected(session.deviceId, session.connectionId, closedAt)));
     for (const session of this.sessions.values()) session.socket.close();
@@ -281,9 +287,11 @@ export class RealtimeService {
       connectedAt: new Date(),
       lastHeartbeat: new Date(),
       socket,
+      capabilities: hello.device.capabilities,
+      permissions: hello.device.permissions,
     };
     this.sessions.set(hello.deviceId, session);
-    void this.deviceRegistry?.upsertConnected(hello.deviceId, hello.identity, hello.networkMode, hello.connectionId, session.connectedAt);
+    void this.deviceRegistry?.upsertConnected(hello.deviceId, hello.identity, hello.networkMode, hello.connectionId, session.connectedAt, hello.device.capabilities, hello.device.permissions);
     this.emitSessionEvent({ type: "device.connected", session });
     socket.send(JSON.stringify({
       type: "hub.hello",

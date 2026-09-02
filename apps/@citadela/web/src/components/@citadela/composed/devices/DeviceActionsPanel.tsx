@@ -11,7 +11,7 @@ const actions: Array<{ type: DevicePowerAction; label: string; title: string; me
   { type: "device.system.power.shutdown", label: "Shutdown", title: "Shut down device?", message: "The device will shut down and remain offline until started again." },
 ];
 
-function DeviceActionsPanel({ deviceId, online }: { deviceId: string; online: boolean }) {
+function DeviceActionsPanel({ deviceId, online, capabilities = [], permissions = [] }: { deviceId: string; online: boolean; capabilities?: string[]; permissions?: string[] }) {
   const { commands, error, acting, create, confirm } = useDeviceCommands(deviceId);
   const [selected, setSelected] = useState<typeof actions[number] | null>(null);
   const [pendingCommand, setPendingCommand] = useState<CommandRecord | null>(null);
@@ -25,10 +25,12 @@ function DeviceActionsPanel({ deviceId, online }: { deviceId: string; online: bo
     setPendingCommand(dispatched);
     setSelected(null);
   };
+  const legacyAccess = capabilities.length === 0 && permissions.length === 0;
+  const allowed = (type: DevicePowerAction) => legacyAccess || (capabilities.includes(`capability.system.power.${type.split(".").at(-1)}`) && permissions.includes(`permission.system.power.${type.split(".").at(-1)}`));
   return <section aria-labelledby="device-actions-title" className="device-actions-panel">
     <h3 id="device-actions-title">Actions</h3>
-    {!online ? <p>Actions are unavailable while the device is offline.</p> : <div className="device-actions-panel__buttons">
-      {actions.map((action) => <ButtonDelete key={action.type} disabled={acting} onClick={() => setSelected(action)}>{action.label}</ButtonDelete>)}
+    {!online ? <p>Actions are unavailable while the device is offline.</p> : actions.every((action) => !allowed(action.type)) ? <p>Power actions are unavailable for this device.</p> : <div className="device-actions-panel__buttons">
+      {actions.filter((action) => allowed(action.type)).map((action) => <ButtonDelete key={action.type} disabled={acting} onClick={() => setSelected(action)}>{action.label}</ButtonDelete>)}
     </div>}
     {error ? <p role="alert">{error.message}</p> : null}
     {pendingCommand ? <p role="status">{pendingCommand.type.split(".").at(-1)}: {pendingCommand.state}</p> : null}
