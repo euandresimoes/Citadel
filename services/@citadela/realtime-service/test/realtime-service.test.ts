@@ -10,13 +10,14 @@ describe("RealtimeService", () => {
     const identityStore = new MemoryIdentityStore();
     const identity = loadOrCreateIdentity(identityStore).identity;
     let resolveResult: ((result: CommandResult) => void) | undefined;
+    let expectedCommandId = "command-info-01";
     const resultPromise = new Promise<CommandResult>((resolve) => { resolveResult = resolve; });
     const powerExecutor: PowerCommandExecutor = { execute: async () => undefined };
     const service = new RealtimeService({
       port: 0,
       pairing,
       onMessage: (_deviceId, message) => {
-        if (message.type === "command.result") resolveResult?.(message);
+        if (message.type === "command.result" && message.commandId === expectedCommandId) resolveResult?.(message);
       },
     });
     await service.ready();
@@ -44,8 +45,10 @@ describe("RealtimeService", () => {
     expect(commandResult.success).toBe(true);
     expect(commandResult.commandId).toBe("command-info-01");
     expect(commandResult.data).toMatchObject({ hostname: expect.any(String) });
+    await expect.poll(() => service.getSession("device-e2e")?.systemInfo).toMatchObject({ hostname: expect.any(String) });
 
     const powerResultPromise = new Promise<CommandResult>((resolve) => { resolveResult = resolve; });
+    expectedCommandId = "command-restart-01";
     expect(service.sendCommand("device-e2e", {
       id: "command-restart-01",
       type: "device.system.power.restart",

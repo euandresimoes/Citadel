@@ -23,11 +23,15 @@ test("creates a profile and navigates between Dashboard and Devices through the 
   });
   try {
     await expect(connector.connect()).rejects.toBeInstanceOf(PairingRequiredError);
-    await expect(page.getByText("e2e-raspberry")).toBeVisible();
+    await expect(page.getByText("e2e-raspberry")).toBeVisible({ timeout: 10_000 });
     await page.getByRole("button", { name: "Approve" }).click();
     await connector.connect();
     await expect(page.getByText("Connected", { exact: true }).last()).toBeVisible();
     await expect(page.getByText("No pending pairing requests.")).toBeVisible();
+    await page.getByRole("button", { name: "e2e-raspberry" }).click();
+    await expect(page).toHaveURL(/\/devices\/e2e-raspberry$/);
+    await expect(page.getByRole("heading", { name: "e2e-raspberry" })).toBeVisible();
+    await expect(page.getByText("Hostname")).toBeVisible();
   } finally {
     connector.close();
   }

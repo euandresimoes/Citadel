@@ -9,6 +9,8 @@ import {
   type DeviceHelloMessage,
   type Command,
   type NetworkMode,
+  SystemInfoSchema,
+  type SystemInfo,
 } from "@citadela/protocol";
 import type { PairingAuthorizer } from "@citadela/device-service";
 import WebSocket, { WebSocketServer, type WebSocket as WebSocketConnection } from "ws";
@@ -30,6 +32,7 @@ export interface DeviceSession {
   connectedAt: Date;
   lastHeartbeat: Date;
   socket: WebSocketConnection;
+  systemInfo?: SystemInfo;
 }
 
 export type SessionEvent =
@@ -112,6 +115,10 @@ export class RealtimeService {
     return true;
   }
 
+  public requestSystemInfo(deviceId: string): boolean {
+    return this.sendCommand(deviceId, { id: randomUUID(), type: "device.system.info.request", deviceId });
+  }
+
   public async close(): Promise<void> {
     for (const session of this.sessions.values()) session.socket.close();
     this.sessions.clear();
@@ -181,6 +188,10 @@ export class RealtimeService {
         }
       }
       const activeSession = [...this.sessions.values()].find((session) => session.socket === socket);
+      if (activeSession && parsed.data.type === "command.result" && parsed.data.success) {
+        const systemInfo = SystemInfoSchema.safeParse(parsed.data.data);
+        if (systemInfo.success) activeSession.systemInfo = systemInfo.data;
+      }
       if (activeSession) this.onMessage?.(activeSession.deviceId, parsed.data);
     });
 
@@ -259,6 +270,7 @@ export class RealtimeService {
       protocolVersion: PROTOCOL_VERSION,
       sessionId: session.sessionId,
     }));
+    this.requestSystemInfo(hello.deviceId);
     previousSession?.socket.close(1000, "Replaced by a newer network connection");
   }
 

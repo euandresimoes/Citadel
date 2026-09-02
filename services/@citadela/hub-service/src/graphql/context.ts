@@ -1,4 +1,5 @@
 import type { CommandRecord, HubCommandService } from "../commands/command-service.js";
+import type { SystemInfo } from "@citadela/protocol";
 
 export interface HubDevice {
   id: string;
@@ -6,10 +7,12 @@ export interface HubDevice {
   connectionId: string;
   connectedAt: string;
   lastHeartbeat: string;
+  systemInfo?: SystemInfo;
 }
 
 export interface HubReadModel {
   listDevices(): Promise<HubDevice[]>;
+  getDevice?(deviceId: string): Promise<HubDevice | undefined>;
 }
 
 export interface HubSessionSource {
@@ -19,7 +22,9 @@ export interface HubSessionSource {
     connectionId: string;
     connectedAt: Date;
     lastHeartbeat: Date;
+    systemInfo?: SystemInfo;
   }>;
+  getSession?(deviceId: string): { deviceId: string; networkMode: string; connectionId: string; connectedAt: Date; lastHeartbeat: Date; systemInfo?: SystemInfo } | undefined;
 }
 
 export class RealtimeDeviceDirectory implements HubReadModel {
@@ -32,7 +37,21 @@ export class RealtimeDeviceDirectory implements HubReadModel {
       connectionId: session.connectionId,
       connectedAt: session.connectedAt.toISOString(),
       lastHeartbeat: session.lastHeartbeat.toISOString(),
+      ...(session.systemInfo ? { systemInfo: session.systemInfo } : {}),
     }));
+  }
+
+  public async getDevice(deviceId: string): Promise<HubDevice | undefined> {
+    const session = this.source.getSession?.(deviceId);
+    if (!session) return undefined;
+    return {
+      id: session.deviceId,
+      networkMode: session.networkMode,
+      connectionId: session.connectionId,
+      connectedAt: session.connectedAt.toISOString(),
+      lastHeartbeat: session.lastHeartbeat.toISOString(),
+      ...(session.systemInfo ? { systemInfo: session.systemInfo } : {}),
+    };
   }
 }
 

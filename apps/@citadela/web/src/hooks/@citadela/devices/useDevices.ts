@@ -7,13 +7,28 @@ export interface Device {
   connectionId: string;
   connectedAt: string;
   lastHeartbeat: string;
+  systemInfo?: SystemInfo;
+}
+
+export interface SystemInfo {
+  hostname: string;
+  platform: string;
+  architecture: string;
+  cpuCount: number;
+  memoryBytes: number;
+  uptimeSeconds: number;
 }
 
 interface DevicesQueryData {
   devices: Device[];
 }
 
-const devicesQuery = `query Devices { devices { id networkMode connectionId connectedAt lastHeartbeat } }`;
+const devicesQuery = `query Devices { devices { id networkMode connectionId connectedAt lastHeartbeat systemInfo { hostname platform architecture cpuCount memoryBytes uptimeSeconds } } }`;
+
+export async function getDevice(deviceId: string): Promise<Device | null> {
+  const data = await query<{ device: Device | null }>(`query Device($id: ID!) { device(id: $id) { id networkMode connectionId connectedAt lastHeartbeat systemInfo { hostname platform architecture cpuCount memoryBytes uptimeSeconds } } }`, { id: deviceId });
+  return data.device;
+}
 
 export function useDevices() {
   const [devices, setDevices] = useState<Device[]>([]);
