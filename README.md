@@ -8,7 +8,7 @@ Install the **Citadela Hub** on your main machine, connect other devices using t
 
 ```text
                     Citadela Hub
-                  http://localhost:5523
+                  http://localhost:45523
                            │
               ┌────────────┼────────────┐
               │            │            │
@@ -109,7 +109,7 @@ The system is divided into three main areas:
 ```text
                                 Citadela
 
-                           localhost:5523
+                           localhost:45523
                                  │
                                NGINX
                                  │
@@ -154,7 +154,7 @@ It is responsible for:
 By default, the dashboard is intended to run locally at:
 
 ```text
-http://localhost:5523
+http://localhost:45523
 ```
 
 The Hub Application Service coordinates command authorization and dispatch. A
@@ -817,7 +817,7 @@ Run the local gateway, Hub, PostgreSQL and web application together:
 pnpm dev
 ```
 
-The development gateway is available at `http://localhost:5523`. It proxies the
+The development gateway is available at `http://localhost:45523`. It proxies the
 web application, Hub REST/GraphQL endpoints, and Realtime WebSocket path. The
 Hub remains internal on port `4174`, Realtime on `4175`, and the isolated
 development PostgreSQL instance on `5433`.

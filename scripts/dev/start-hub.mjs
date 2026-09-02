@@ -18,6 +18,7 @@ const runtime = new HubRuntime({
 });
 await runtime.ready();
 console.log(`Citadela Hub listening on http://127.0.0.1:${runtime.api.port()}`);
+console.log(`Citadela API Gateway listening on http://127.0.0.1:${process.env.CITADELA_GATEWAY_PORT ?? "45523"}`);
 const shutdown = async () => { await runtime.close(); process.exit(0); };
 process.once("SIGINT", shutdown);
 process.once("SIGTERM", shutdown);
