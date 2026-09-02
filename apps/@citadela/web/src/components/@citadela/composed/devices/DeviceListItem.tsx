@@ -13,7 +13,7 @@ function DeviceListItem({ device }: DeviceListItemProps) {
       <h3><button type="button" onClick={() => navigate(`/devices/${encodeURIComponent(device.id)}`)}>{device.id}</button></h3>
       <span>{device.networkMode}</span>
     </div>
-    <span className="device-list-item__status">Connected</span>
+    <span className="device-list-item__status">{device.status === "online" ? "Connected" : "Offline"}</span>
   </article>;
 }
 

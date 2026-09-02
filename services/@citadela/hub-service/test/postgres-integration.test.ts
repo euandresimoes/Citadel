@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { resolve } from "node:path";
 import { randomUUID } from "node:crypto";
-import { createPostgresPool, runMigrations, PostgresPairingRepository } from "@citadela/device-service";
+import { createPostgresPool, runMigrations, PostgresDeviceRegistry, PostgresPairingRepository } from "@citadela/device-service";
 import { createPostgresCommandPool, PostgresCommandRepository } from "../src/index.js";
 import type { CommandRecord } from "../src/index.js";
 import { HubRuntime, LocalSessionManager } from "../src/index.js";
@@ -25,6 +25,12 @@ describe("PostgreSQL integration", () => {
       };
       await pairing.savePending(request);
       await expect(pairing.findPending(request.deviceId, request.identity.fingerprint)).resolves.toMatchObject({ requestId: request.requestId });
+
+      const registry = new PostgresDeviceRegistry(pool);
+      await registry.upsertConnected(request.deviceId, request.identity, "lan", randomUUID(), new Date());
+      await expect(registry.get(request.deviceId)).resolves.toMatchObject({ deviceId: request.deviceId, status: "online" });
+      await registry.markAllOffline(new Date());
+      await expect(registry.get(request.deviceId)).resolves.toMatchObject({ status: "offline" });
 
       const command = new PostgresCommandRepository(hubPool);
       const record: CommandRecord = {

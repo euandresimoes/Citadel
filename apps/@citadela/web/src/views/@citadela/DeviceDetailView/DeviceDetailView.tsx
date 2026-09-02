@@ -17,7 +17,7 @@ function DeviceDetailView({ deviceId }: DeviceDetailViewProps) {
   if (!device) return <section aria-label="Device details"><p>Loading device…</p></section>;
   return <section aria-labelledby="device-detail-title">
     <h2 id="device-detail-title">{device.id}</h2>
-    <p>{device.networkMode} · Connected</p>
+    <p>{device.networkMode} · {device.status === "online" ? "Connected" : "Offline"}</p>
     {device.systemInfo ? <dl>
       <dt>Hostname</dt><dd>{device.systemInfo.hostname}</dd>
       <dt>Platform</dt><dd>{device.systemInfo.platform}</dd>

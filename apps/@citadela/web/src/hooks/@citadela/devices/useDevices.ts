@@ -3,6 +3,7 @@ import { query } from "../../../services/@citadela/hub/graphqlClient";
 
 export interface Device {
   id: string;
+  status: "online" | "offline";
   networkMode: string;
   connectionId: string;
   connectedAt: string;
@@ -23,10 +24,10 @@ interface DevicesQueryData {
   devices: Device[];
 }
 
-const devicesQuery = `query Devices { devices { id networkMode connectionId connectedAt lastHeartbeat systemInfo { hostname platform architecture cpuCount memoryBytes uptimeSeconds } } }`;
+const devicesQuery = `query Devices { devices { id status networkMode connectionId connectedAt lastHeartbeat systemInfo { hostname platform architecture cpuCount memoryBytes uptimeSeconds } } }`;
 
 export async function getDevice(deviceId: string): Promise<Device | null> {
-  const data = await query<{ device: Device | null }>(`query Device($id: ID!) { device(id: $id) { id networkMode connectionId connectedAt lastHeartbeat systemInfo { hostname platform architecture cpuCount memoryBytes uptimeSeconds } } }`, { id: deviceId });
+  const data = await query<{ device: Device | null }>(`query Device($id: ID!) { device(id: $id) { id status networkMode connectionId connectedAt lastHeartbeat systemInfo { hostname platform architecture cpuCount memoryBytes uptimeSeconds } } }`, { id: deviceId });
   return data.device;
 }
 

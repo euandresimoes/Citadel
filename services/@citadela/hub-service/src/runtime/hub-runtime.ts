@@ -1,4 +1,4 @@
-import { PairingService, PostgresPairingRepository, createPostgresPool, runMigrations } from "@citadela/device-service";
+import { InMemoryDeviceRegistry, PairingService, PostgresDeviceRegistry, PostgresPairingRepository, createPostgresPool, runMigrations, type DeviceRegistry } from "@citadela/device-service";
 import { RealtimeService } from "@citadela/realtime-service";
 import type { CommandAuthorizer, CommandRepository } from "../commands/command-service.js";
 import { HubCommandService } from "../commands/command-service.js";
@@ -9,6 +9,7 @@ import { PostgresCommandRepository } from "../commands/postgres-repository.js";
 import type { Pool } from "pg";
 import { ProfileAuthenticationService } from "../auth/profile-service.js";
 import { PostgresProfileRepository } from "../auth/postgres-repository.js";
+import { PersistentDeviceDirectory } from "../graphql/context.js";
 
 export interface HubRuntimeOptions {
   apiPort: number;
@@ -37,6 +38,7 @@ export class HubRuntime {
   private readonly usesCommandRepository: boolean;
   private readonly usesPairingRepository: boolean;
   private readonly usesProfileRepository: boolean;
+  private readonly deviceRegistry: DeviceRegistry;
 
   public constructor(options: HubRuntimeOptions) {
     let commands: HubCommandService;
@@ -50,10 +52,12 @@ export class HubRuntime {
     const pairing = options.pairing ?? (this.databasePool ? new PairingService(new PostgresPairingRepository(this.databasePool)) : undefined);
     if (!pairing) throw new Error("pairing or databaseUrl is required");
     this.pairing = pairing;
+    this.deviceRegistry = this.databasePool ? new PostgresDeviceRegistry(this.databasePool) : new InMemoryDeviceRegistry();
     this.realtime = new RealtimeService({
       ...(options.host ? { host: options.host } : {}),
       port: options.realtimePort,
       pairing,
+      deviceRegistry: this.deviceRegistry,
       onMessage: (deviceId, message) => {
         if (message.type === "command.result") void commands.handleResult(deviceId, message);
       },
@@ -69,12 +73,14 @@ export class HubRuntime {
       commands,
       pairing,
       realtime: this.realtime,
+      readModel: new PersistentDeviceDirectory(this.deviceRegistry, this.realtime),
       ...(options.events ? { events: options.events } : {}),
       ...(profileAuth ? { profileAuth } : {}),
     });
   }
 
   public async ready(): Promise<void> {
+    await this.deviceRegistry.markAllOffline(new Date());
     if (this.databasePool) {
       if (!this.migrationsDirectory && !this.usesCommandRepository) throw new Error("migrationsDirectory is required for command persistence");
       if (this.usesProfileRepository && !this.migrationsDirectory) throw new Error("migrationsDirectory is required for profile persistence");
