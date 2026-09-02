@@ -7,3 +7,4 @@ export * from "./events/event-bus.js";
 export * from "./api/http-server.js";
 export * from "./graphql/context.js";
 export * from "./runtime/hub-runtime.js";
+export * from "./network/provider-manager.js";

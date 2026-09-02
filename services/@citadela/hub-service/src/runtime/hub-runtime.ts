@@ -10,6 +10,7 @@ import type { Pool } from "pg";
 import { ProfileAuthenticationService } from "../auth/profile-service.js";
 import { PostgresProfileRepository } from "../auth/postgres-repository.js";
 import { PersistentDeviceDirectory } from "../graphql/context.js";
+import { NetworkProviderManager, PostgresProviderRepository } from "../network/provider-manager.js";
 
 export interface HubRuntimeOptions {
   apiPort: number;
@@ -76,6 +77,7 @@ export class HubRuntime {
       readModel: new PersistentDeviceDirectory(this.deviceRegistry, this.realtime),
       ...(options.events ? { events: options.events } : {}),
       ...(profileAuth ? { profileAuth } : {}),
+      networkProviders: new NetworkProviderManager(this.databasePool ? new PostgresProviderRepository(this.databasePool) : undefined),
     });
   }
 

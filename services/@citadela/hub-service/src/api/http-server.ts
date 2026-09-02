@@ -110,7 +110,7 @@ export class HubHttpServer {
     if (!session) { sendJson(response, 401, { error: "Unauthorized" }); return; }
     if (url.pathname === "/graphql") { await this.graphqlRequest(request, response, session); return; }
     if (url.pathname === "/api/v1/events" && request.method === "GET") { this.eventsRequest(request, response); return; }
-    if (url.pathname === "/api/v1/network/providers" && request.method === "GET") { sendJson(response, 200, this.networkProviders.list()); return; }
+    if (url.pathname === "/api/v1/network/providers" && request.method === "GET") { sendJson(response, 200, await this.networkProviders.list()); return; }
     if (url.pathname === "/api/v1/network/providers" && request.method === "PUT") { await this.configureProvider(request, response, session); return; }
     if (url.pathname === "/api/v1/pairing/requests" && request.method === "GET") { await this.listPairing(response); return; }
     const pairingAction = url.pathname.match(/^\/api\/v1\/pairing\/requests\/([^/]+)\/(approve|reject)$/);
@@ -244,7 +244,7 @@ export class HubHttpServer {
     if (!this.options.sessions.csrfValid(request, session)) { sendJson(response, 403, { error: "Invalid CSRF token" }); return; }
     const body = await readJson(request);
     if (body?.mode !== "lan" && body?.mode !== "headscale" || typeof body?.enabled !== "boolean") { sendJson(response, 400, { error: "mode and enabled are required" }); return; }
-    try { sendJson(response, 200, this.networkProviders.configure({ mode: body.mode, enabled: body.enabled, ...(typeof body.endpoint === "string" ? { endpoint: body.endpoint } : {}), ...(typeof body.controlPlaneUrl === "string" ? { controlPlaneUrl: body.controlPlaneUrl } : {}) } as ProviderConfig)); }
+    try { sendJson(response, 200, await this.networkProviders.configure({ mode: body.mode, enabled: body.enabled, ...(typeof body.endpoint === "string" ? { endpoint: body.endpoint } : {}), ...(typeof body.controlPlaneUrl === "string" ? { controlPlaneUrl: body.controlPlaneUrl } : {}) } as ProviderConfig)); }
     catch (error) { sendJson(response, 400, { error: error instanceof Error ? error.message : "Unable to configure provider" }); }
   }
 
