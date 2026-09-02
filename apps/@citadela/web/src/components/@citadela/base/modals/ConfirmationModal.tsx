@@ -1,7 +1,4 @@
-import BaseModal from "./BaseModal";
-import ButtonDelete from "../buttons/ButtonDelete";
-import ButtonSecondary from "../buttons/ButtonSecondary";
-import "./ConfirmationModal.scss";
+import ConfirmationDialog from "../../composed/dialogs/ConfirmationDialog";
 
 export interface ConfirmationModalProps {
   open: boolean;
@@ -13,13 +10,7 @@ export interface ConfirmationModalProps {
 }
 
 function ConfirmationModal({ open, title, message, confirmLabel = "Confirm", onConfirm, onCancel }: ConfirmationModalProps) {
-  return <BaseModal open={open} title={title} onClose={onCancel}>
-    <p className="confirmation-modal__message">{message}</p>
-    <footer className="confirmation-modal__actions">
-      <ButtonSecondary onClick={onCancel}>Cancel</ButtonSecondary>
-      <ButtonDelete onClick={onConfirm}>{confirmLabel}</ButtonDelete>
-    </footer>
-  </BaseModal>;
+  return <ConfirmationDialog open={open} title={title} message={message} confirmLabel={confirmLabel} onConfirm={onConfirm} onCancel={onCancel} />;
 }
 
 export default ConfirmationModal;

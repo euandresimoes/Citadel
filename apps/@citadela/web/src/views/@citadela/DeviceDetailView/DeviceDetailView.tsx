@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getDevice, type Device } from "../../../hooks/@citadela/devices/useDevices";
+import DeviceActionsPanel from "../../../components/@citadela/composed/devices/DeviceActionsPanel";
 
 interface DeviceDetailViewProps { deviceId: string; }
 
@@ -18,6 +19,7 @@ function DeviceDetailView({ deviceId }: DeviceDetailViewProps) {
   return <section aria-labelledby="device-detail-title">
     <h2 id="device-detail-title">{device.id}</h2>
     <p>{device.networkMode} · {device.status === "online" ? "Connected" : "Offline"}</p>
+    <DeviceActionsPanel deviceId={device.id} online={device.status === "online"} />
     {device.systemInfo ? <dl>
       <dt>Hostname</dt><dd>{device.systemInfo.hostname}</dd>
       <dt>Platform</dt><dd>{device.systemInfo.platform}</dd>

@@ -21,6 +21,9 @@ export interface PairingRequest {
   createdAt: string;
 }
 
+export type DevicePowerAction = "device.system.power.sleep" | "device.system.power.restart" | "device.system.power.shutdown";
+export interface CommandRecord { id: string; deviceId: string; type: string; state: string; createdAt: string; expiresAt: string; confirmedAt: string | null; completedAt: string | null; error: string | null; }
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(path, {
     ...init,
@@ -64,6 +67,13 @@ export const hubApi = {
   listPairingRequests: (): Promise<PairingRequest[]> => request<PairingRequest[]>("/api/v1/pairing/requests"),
   approvePairing: (requestId: string): Promise<void> => pairingAction(requestId, "approve"),
   rejectPairing: (requestId: string): Promise<void> => pairingAction(requestId, "reject"),
+  createCommand: (deviceId: string, type: DevicePowerAction): Promise<CommandRecord> => request<CommandRecord>("/api/v1/commands", {
+    method: "POST", headers: { "x-citadela-csrf": readCookie("citadela_csrf") ?? "" }, body: JSON.stringify({ deviceId, type }),
+  }),
+  confirmCommand: (commandId: string): Promise<CommandRecord> => request<CommandRecord>(`/api/v1/commands/${encodeURIComponent(commandId)}/confirm`, {
+    method: "POST", headers: { "x-citadela-csrf": readCookie("citadela_csrf") ?? "" },
+  }),
+  getCommand: (commandId: string): Promise<CommandRecord> => request<CommandRecord>(`/api/v1/commands/${encodeURIComponent(commandId)}`),
 };
 
 function pairingAction(requestId: string, action: "approve" | "reject"): Promise<void> {
