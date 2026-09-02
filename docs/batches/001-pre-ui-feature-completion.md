@@ -17,31 +17,31 @@
 
 # Batch 2 — Device Revocation
 
-- [ ] Add a revoke action to the device details view.
-- [ ] Require explicit confirmation before revocation.
-- [ ] Disable revocation while the request is pending.
-- [ ] Handle revoked device responses and errors.
-- [ ] Update the device list after revocation.
-- [ ] Update the device details view after revocation.
-- [ ] Add unit tests for revoke actions and confirmation behavior.
-- [ ] Add backend integration tests for authorized revocation.
-- [ ] Add backend integration tests for rejected unauthorized revocation.
-- [ ] Add E2E coverage for device revocation.
-- [ ] Validate revocation against the real PostgreSQL database in Docker.
-- [ ] Validate the complete revocation flow with the frontend and backend connected.
+- [x] Add a revoke action to the device details view.
+- [x] Require explicit confirmation before revocation.
+- [x] Disable revocation while the request is pending.
+- [x] Handle revoked device responses and errors.
+- [x] Update the device list after revocation.
+- [x] Update the device details view after revocation.
+- [x] Add unit tests for revoke actions and confirmation behavior.
+- [x] Add backend integration tests for authorized revocation.
+- [x] Add backend integration tests for rejected unauthorized revocation.
+- [x] Add E2E coverage for device revocation.
+- [x] Validate revocation against the real PostgreSQL database in Docker.
+- [x] Validate the complete revocation flow with the frontend and backend connected.
 
 # Batch 3 — Manual System Information Refresh
 
-- [ ] Add an explicit system information refresh command.
-- [ ] Add refresh loading and disabled states.
-- [ ] Update system information without replacing unrelated device state.
-- [ ] Handle offline devices and unavailable responses.
-- [ ] Update system information through SSE events when applicable.
-- [ ] Add unit tests for refresh behavior.
-- [ ] Add Connector tests for repeated system information requests.
-- [ ] Add Hub tests for system information updates.
-- [ ] Add E2E coverage for manual refresh.
-- [ ] Validate the refresh flow with the frontend and backend connected.
+- [x] Add an explicit system information refresh command.
+- [x] Add refresh loading and disabled states.
+- [x] Update system information without replacing unrelated device state.
+- [x] Handle offline devices and unavailable responses.
+- [x] Update system information through SSE events when applicable.
+- [x] Add unit tests for refresh behavior.
+- [x] Add Connector tests for repeated system information requests.
+- [x] Add Hub tests for system information updates.
+- [x] Add E2E coverage for manual refresh.
+- [x] Validate the refresh flow with the frontend and backend connected.
 
 # Batch 4 — Real-Time Device Metrics
 
