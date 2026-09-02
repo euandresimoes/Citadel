@@ -727,6 +727,7 @@ Citadela/
 |---|---|
 | `@citadela/web` | Citadela web dashboard |
 | `@citadela/connector` | Client installed on managed devices |
+| `@citadela/cli` | `citadela` CLI and terminal UI for configuring and running the Connector |
 
 ### Services
 
@@ -830,6 +831,30 @@ For example:
 pnpm --filter @citadela/web dev
 pnpm --filter @citadela/realtime-service dev
 pnpm --filter @citadela/connector dev
+```
+
+## Connector CLI
+
+The Connector can be configured and started through the `citadela` CLI:
+
+```bash
+pnpm --filter @citadela/cli build
+node apps/@citadela/cli/dist/cli.js init --hub ws://localhost:4000 --network lan
+node apps/@citadela/cli/dist/cli.js status
+node apps/@citadela/cli/dist/cli.js connect
+```
+
+Configuration is stored in `~/.citadela/config.json` and the device identity is
+stored separately in `~/.citadela/identity.json`. The identity file contains
+the private key and is written with restrictive permissions; neither file is
+committed to the repository. Set `CITADELA_CONFIG_DIR` to use another location.
+
+On Linux, an explicit service installation creates and enables a systemd unit.
+On Windows, it creates a Windows service backed by a small wrapper script. Use
+`--dry-run` to inspect the generated definition without changing the system:
+
+```bash
+citadela service install --dry-run
 ```
 
 ---
