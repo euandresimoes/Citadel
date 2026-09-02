@@ -39,6 +39,7 @@ function DeviceDetailView({ deviceId }: DeviceDetailViewProps) {
       <dt>Memory</dt><dd>{Math.round(device.systemInfo.memoryBytes / 1024 / 1024)} MB</dd>
       <dt>Uptime</dt><dd>{device.systemInfo.uptimeSeconds}s</dd>
     </dl> : <p>System information is not available yet.</p>}
+    {device.metrics ? <dl><dt>CPU load</dt><dd>{device.metrics.cpuLoadPercent}%</dd><dt>Memory used</dt><dd>{Math.round(device.metrics.memoryUsedBytes / 1024 / 1024)} MB / {Math.round(device.metrics.memoryTotalBytes / 1024 / 1024)} MB</dd></dl> : <p>Metrics are not available yet.</p>}
   </section>;
 }
 

@@ -1,5 +1,5 @@
 import os from "node:os";
-import type { DeviceInfo, SystemInfo } from "@citadela/protocol";
+import type { DeviceInfo, SystemInfo, SystemMetrics } from "@citadela/protocol";
 
 export function collectDeviceInfo(): DeviceInfo {
   const platform = os.platform();
@@ -41,4 +41,10 @@ export function collectSystemInfo(): SystemInfo {
     memoryBytes: os.totalmem(),
     uptimeSeconds: Math.floor(os.uptime()),
   };
+}
+
+export function collectSystemMetrics(): SystemMetrics {
+  const total = os.totalmem();
+  const load = os.loadavg()[0] ?? 0;
+  return { cpuLoadPercent: Math.min(100, Math.max(0, Number((load / Math.max(1, os.cpus().length) * 100).toFixed(2)))), memoryUsedBytes: total - os.freemem(), memoryTotalBytes: total, collectedAt: new Date().toISOString() };
 }

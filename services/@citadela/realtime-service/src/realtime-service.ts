@@ -11,6 +11,8 @@ import {
   type NetworkMode,
   SystemInfoSchema,
   type SystemInfo,
+  SystemMetricsSchema,
+  type SystemMetrics,
 } from "@citadela/protocol";
 import type { PairingAuthorizer } from "@citadela/device-service";
 import type { DeviceRegistry } from "@citadela/device-service";
@@ -35,11 +37,13 @@ export interface DeviceSession {
   lastHeartbeat: Date;
   socket: WebSocketConnection;
   systemInfo?: SystemInfo;
+  metrics?: SystemMetrics;
 }
 
 export type SessionEvent =
   | { type: "device.connected"; session: DeviceSession }
-  | { type: "device.disconnected"; deviceId: string; connectionId: string };
+  | { type: "device.disconnected"; deviceId: string; connectionId: string }
+  | { type: "device.metrics.updated"; session: DeviceSession };
 
 export type SessionEventListener = (event: SessionEvent) => void;
 
@@ -122,6 +126,7 @@ export class RealtimeService {
   public requestSystemInfo(deviceId: string): boolean {
     return this.sendCommand(deviceId, { id: randomUUID(), type: "device.system.info.request", deviceId });
   }
+  public requestMetrics(deviceId: string): boolean { return this.sendCommand(deviceId, { id: randomUUID(), type: "device.system.metrics.request", deviceId }); }
 
   public async close(): Promise<void> {
     const closedAt = new Date();
@@ -200,6 +205,12 @@ export class RealtimeService {
         if (systemInfo.success) {
           activeSession.systemInfo = systemInfo.data;
           void this.deviceRegistry?.updateSystemInfo(activeSession.deviceId, activeSession.connectionId, systemInfo.data);
+        }
+        const metrics = SystemMetricsSchema.safeParse(parsed.data.data);
+        if (metrics.success) {
+          activeSession.metrics = metrics.data;
+          void this.deviceRegistry?.updateMetrics(activeSession.deviceId, activeSession.connectionId, metrics.data);
+          this.emitSessionEvent({ type: "device.metrics.updated", session: activeSession });
         }
       }
       if (activeSession) this.onMessage?.(activeSession.deviceId, parsed.data);
@@ -283,6 +294,7 @@ export class RealtimeService {
       sessionId: session.sessionId,
     }));
     this.requestSystemInfo(hello.deviceId);
+    this.requestMetrics(hello.deviceId);
     previousSession?.socket.close(1000, "Replaced by a newer network connection");
   }
 

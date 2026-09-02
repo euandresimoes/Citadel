@@ -8,6 +8,7 @@ import {
   PROTOCOL_VERSION,
   type CitadelaMessage,
   SystemInfoSchema,
+  SystemMetricsSchema,
   type NetworkMode,
   type HubHelloMessage,
 } from "@citadela/protocol";
@@ -16,7 +17,7 @@ import {
   loadOrCreateIdentity,
   type IdentityStore,
 } from "./identity/identity.js";
-import { collectDeviceInfo, collectSystemInfo } from "./system/device-info.js";
+import { collectDeviceInfo, collectSystemInfo, collectSystemMetrics } from "./system/device-info.js";
 import { createPowerCommandExecutor, type PowerCommandExecutor, type PowerCommandType } from "./power/index.js";
 
 export interface ConnectorOptions {
@@ -173,6 +174,11 @@ export class Connector {
           if (!settled) return;
           if (parsed.data.deviceId !== this.options.deviceId) return;
           this.sendCommandResult(socket, parsed.data.id, async () => SystemInfoSchema.parse(collectSystemInfo()));
+          return;
+        }
+        if (parsed.data.type === "device.system.metrics.request") {
+          if (!settled || parsed.data.deviceId !== this.options.deviceId) return;
+          this.sendCommandResult(socket, parsed.data.id, async () => SystemMetricsSchema.parse(collectSystemMetrics()));
           return;
         }
         if (isPowerCommand(parsed.data)) {

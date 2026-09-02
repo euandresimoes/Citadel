@@ -1,5 +1,5 @@
 import type { CommandRecord, HubCommandService } from "../commands/command-service.js";
-import type { SystemInfo } from "@citadela/protocol";
+import type { SystemInfo, SystemMetrics } from "@citadela/protocol";
 import type { DeviceRegistry, DeviceRecord } from "@citadela/device-service";
 
 export interface HubDevice {
@@ -10,6 +10,7 @@ export interface HubDevice {
   lastHeartbeat: string;
   status: "online" | "offline";
   systemInfo?: SystemInfo;
+  metrics?: SystemMetrics;
 }
 
 export interface HubReadModel {
@@ -24,9 +25,10 @@ export interface HubSessionSource {
     connectionId: string;
     connectedAt: Date;
     lastHeartbeat: Date;
-    systemInfo?: SystemInfo;
+  systemInfo?: SystemInfo;
+  metrics?: SystemMetrics;
   }>;
-  getSession?(deviceId: string): { deviceId: string; networkMode: string; connectionId: string; connectedAt: Date; lastHeartbeat: Date; systemInfo?: SystemInfo } | undefined;
+  getSession?(deviceId: string): { deviceId: string; networkMode: string; connectionId: string; connectedAt: Date; lastHeartbeat: Date; systemInfo?: SystemInfo; metrics?: SystemMetrics } | undefined;
 }
 
 export class RealtimeDeviceDirectory implements HubReadModel {
@@ -41,6 +43,8 @@ export class RealtimeDeviceDirectory implements HubReadModel {
       lastHeartbeat: session.lastHeartbeat.toISOString(),
       status: "online",
       ...(session.systemInfo ? { systemInfo: session.systemInfo } : {}),
+      ...(session.metrics ? { metrics: session.metrics } : {}),
+      ...(session.metrics ? { metrics: session.metrics } : {}),
     }));
   }
 
@@ -83,6 +87,7 @@ function deviceView(record: DeviceRecord, active: ReturnType<NonNullable<HubSess
     lastHeartbeat: active?.lastHeartbeat.toISOString() ?? record.lastSeenAt.toISOString(),
     status: active ? "online" : record.status,
     ...(active?.systemInfo ? { systemInfo: active.systemInfo } : record.systemInfo ? { systemInfo: record.systemInfo } : {}),
+    ...(active?.metrics ? { metrics: active.metrics } : record.metrics ? { metrics: record.metrics } : {}),
   };
 }
 

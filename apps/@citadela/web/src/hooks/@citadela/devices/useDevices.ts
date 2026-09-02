@@ -18,16 +18,18 @@ export interface SystemInfo {
   cpuCount: number;
   memoryBytes: number;
   uptimeSeconds: number;
+  metrics?: SystemMetrics;
 }
+export interface SystemMetrics { cpuLoadPercent: number; memoryUsedBytes: number; memoryTotalBytes: number; collectedAt: string; }
 
 interface DevicesQueryData {
   devices: Device[];
 }
 
-const devicesQuery = `query Devices { devices { id status networkMode connectionId connectedAt lastHeartbeat systemInfo { hostname platform architecture cpuCount memoryBytes uptimeSeconds } } }`;
+const devicesQuery = `query Devices { devices { id status networkMode connectionId connectedAt lastHeartbeat systemInfo { hostname platform architecture cpuCount memoryBytes uptimeSeconds } metrics { cpuLoadPercent memoryUsedBytes memoryTotalBytes collectedAt } } }`;
 
 export async function getDevice(deviceId: string): Promise<Device | null> {
-  const data = await query<{ device: Device | null }>(`query Device($id: ID!) { device(id: $id) { id status networkMode connectionId connectedAt lastHeartbeat systemInfo { hostname platform architecture cpuCount memoryBytes uptimeSeconds } } }`, { id: deviceId });
+  const data = await query<{ device: Device | null }>(`query Device($id: ID!) { device(id: $id) { id status networkMode connectionId connectedAt lastHeartbeat systemInfo { hostname platform architecture cpuCount memoryBytes uptimeSeconds } metrics { cpuLoadPercent memoryUsedBytes memoryTotalBytes collectedAt } } }`, { id: deviceId });
   return data.device;
 }
 
@@ -54,10 +56,12 @@ export function useDevices() {
     const refreshFromEvent = () => void refresh();
     events?.addEventListener("device.connected", refreshFromEvent);
     events?.addEventListener("device.disconnected", refreshFromEvent);
+    events?.addEventListener("device.metrics.updated", refreshFromEvent);
     return () => {
       window.clearTimeout(loadHandle);
       events?.removeEventListener("device.connected", refreshFromEvent);
       events?.removeEventListener("device.disconnected", refreshFromEvent);
+      events?.removeEventListener("device.metrics.updated", refreshFromEvent);
       events?.close();
     };
   }, [refresh]);

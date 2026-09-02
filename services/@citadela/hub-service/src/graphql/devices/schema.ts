@@ -7,7 +7,10 @@ export const typeDefs = `#graphql
     lastHeartbeat: String!
     status: String!
     systemInfo: SystemInfo
+    metrics: SystemMetrics
   }
+
+  type SystemMetrics { cpuLoadPercent: Float! memoryUsedBytes: Float! memoryTotalBytes: Float! collectedAt: String! }
 
   type SystemInfo {
     hostname: String!
