@@ -5,6 +5,7 @@ import { createPostgresPool, runMigrations, PostgresDeviceRegistry, PostgresPair
 import { createPostgresCommandPool, PostgresCommandRepository } from "../src/index.js";
 import type { CommandRecord } from "../src/index.js";
 import { HubRuntime, LocalSessionManager } from "../src/index.js";
+import { NetworkProviderManager, PostgresProviderRepository } from "../src/network/provider-manager.js";
 
 const databaseUrl = process.env.CITADELA_TEST_DATABASE_URL;
 
@@ -15,6 +16,10 @@ describe("PostgreSQL integration", () => {
     try {
       await runMigrations(pool, resolve(process.cwd(), "../device-service/migrations"));
       await runMigrations(pool, resolve(process.cwd(), "migrations"));
+
+      const providers = new NetworkProviderManager(new PostgresProviderRepository(hubPool));
+      await providers.configure({ mode: "headscale", enabled: true, controlPlaneUrl: "https://headscale.integration" });
+      await expect(providers.list()).resolves.toEqual(expect.arrayContaining([{ mode: "headscale", enabled: true, controlPlaneUrl: "https://headscale.integration" }]));
 
       const pairing = new PostgresPairingRepository(pool);
       const request = {
