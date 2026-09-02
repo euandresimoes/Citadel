@@ -9,6 +9,7 @@ export interface Device {
   connectedAt: string;
   lastHeartbeat: string;
   systemInfo?: SystemInfo;
+  metrics?: SystemMetrics;
 }
 
 export interface SystemInfo {
@@ -18,7 +19,6 @@ export interface SystemInfo {
   cpuCount: number;
   memoryBytes: number;
   uptimeSeconds: number;
-  metrics?: SystemMetrics;
 }
 export interface SystemMetrics { cpuLoadPercent: number; memoryUsedBytes: number; memoryTotalBytes: number; collectedAt: string; }
 
