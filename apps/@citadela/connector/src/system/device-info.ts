@@ -23,10 +23,16 @@ export function collectDeviceInfo(): DeviceInfo {
     capabilities: [
       "capability.system.info",
       "capability.system.metrics",
+      "capability.system.power.restart",
+      "capability.system.power.shutdown",
+      "capability.system.power.sleep",
     ],
     permissions: [
       "permission.system.info.read",
       "permission.system.metrics.read",
+      "permission.system.power.restart",
+      "permission.system.power.shutdown",
+      "permission.system.power.sleep",
     ],
   };
 }

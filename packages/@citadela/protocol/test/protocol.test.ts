@@ -8,8 +8,13 @@ import {
   PROTOCOL_VERSION,
   PairingPendingMessageSchema,
 } from "../src/index.js";
+import { SystemMetricsSchema } from "../src/devices/system-metrics.js";
 
 describe("Citadela protocol", () => {
+  it("validates bounded system metrics snapshots", () => {
+    expect(SystemMetricsSchema.parse({ cpuLoadPercent: 42, memoryUsedBytes: 10, memoryTotalBytes: 20, collectedAt: "2026-01-01T00:00:00.000Z" })).toBeTruthy();
+    expect(() => SystemMetricsSchema.parse({ cpuLoadPercent: 101, memoryUsedBytes: 10, memoryTotalBytes: 20, collectedAt: "2026-01-01T00:00:00.000Z" })).toThrow();
+  });
   it("accepts a valid device hello message", () => {
     const result = DeviceHelloMessageSchema.safeParse({
       type: "device.hello",
