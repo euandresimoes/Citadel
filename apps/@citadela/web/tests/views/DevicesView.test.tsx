@@ -7,9 +7,9 @@ describe("DevicesView", () => {
   beforeEach(() => vi.restoreAllMocks());
 
   it("shows the empty state when no devices are connected", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ data: { devices: [] } }), { status: 200 }));
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => Promise.resolve(new Response(JSON.stringify(String(input).includes("pairing/requests") ? [] : { data: { devices: [] } }), { status: 200 })));
     render(<DevicesView />);
-    await waitFor(() => expect(screen.getByText("No devices connected.")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("No devices yet")).toBeInTheDocument());
   });
 
   it("shows connected devices from the Hub read model", async () => {

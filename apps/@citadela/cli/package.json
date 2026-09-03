@@ -1,10 +1,17 @@
 {
   "name": "@citadela/cli",
-  "version": "0.1.0",
+  "version": "0.5.11",
   "description": "Citadela command-line interface and terminal UI.",
+  "files": [
+    "bin",
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "bin": {
-    "citadela": "./dist/cli.js"
+    "citadela": "./bin/citadela.cjs"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -16,11 +23,14 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "build:native:windows": "pnpm build && pnpm dlx bun build --compile --minify --conditions=bun,node dist/native-entry.js --outfile dist/bin/citadela-win32-x64.exe",
+    "build:native:linux": "pnpm build && pnpm dlx bun build --compile --minify --target=bun-linux-x64 --conditions=bun,node dist/native-entry.js --outfile dist/bin/citadela-linux-x64",
+    "build:native:linux-arm64": "pnpm build && pnpm dlx bun build --compile --minify --target=bun-linux-arm64 --conditions=bun,node dist/native-entry.js --outfile dist/bin/citadela-linux-arm64",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
-    "@citadela/connector": "workspace:*",
+    "@citadela/connector": "0.2.0",
     "@opentui/core": "^0.5.10",
     "@opentui/react": "^0.5.10",
     "react": "^19.2.0"

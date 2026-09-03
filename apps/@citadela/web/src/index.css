@@ -1,0 +1,164 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap");
+@import "tailwindcss";
+@import "./transitions.css";
+
+@theme {
+  --color-canvas: #070708;
+  --color-surface: #101011;
+  --color-card: #161618;
+  --color-raised: #1c1c1e;
+  --color-hover: #26262a;
+  --color-line: rgb(255 255 255 / 0.08);
+  --color-muted: #b4b4b8;
+  --color-fg-faint: #6e6e74;
+  --color-primary: #f2f2f2;
+  --color-accent: #6c1ee2;
+  --font-heading: "IBM Plex Sans", sans-serif;
+  --font-body: "DM Sans", sans-serif;
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+  html {
+    font-size: 100%;
+    text-size-adjust: 100%;
+  }
+  body {
+    min-width: 320px;
+    margin: 0;
+    background: var(--color-canvas);
+    color: var(--color-primary);
+    font-family: var(--font-body);
+    font-size: 13px;
+    line-height: 1.4;
+    -webkit-font-smoothing: antialiased;
+  }
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+  button,
+  [role="button"] {
+    cursor: pointer;
+  }
+  button:disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+  img,
+  picture,
+  svg,
+  canvas {
+    display: block;
+    max-width: 100%;
+  }
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  p,
+  figure,
+  blockquote,
+  dl,
+  dd {
+    margin: 0;
+  }
+  ol,
+  ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+}
+
+@layer components {
+  .ui-button {
+    @apply inline-flex h-8 min-h-8 shrink-0 min-w-fit items-center justify-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 text-[13px] font-medium normal-case outline-0 transition-colors focus-visible:ring-1 focus-visible:ring-accent;
+  }
+  .ui-button:disabled {
+    @apply cursor-not-allowed opacity-50;
+  }
+  .ui-button--primary {
+    @apply border-white/[0.05] bg-white/[0.06] text-primary hover:bg-white/[0.1];
+  }
+  .ui-button--accent {
+    @apply border-accent bg-accent text-white hover:bg-accent/85;
+  }
+  .ui-button--secondary {
+    @apply border-white/[0.05] bg-transparent text-primary hover:bg-white/[0.1];
+  }
+  .ui-button--ghost {
+    @apply border-transparent bg-transparent px-2 text-muted hover:bg-white/[0.07] hover:text-primary;
+  }
+  .ui-button--danger {
+    @apply border-red-500/25 bg-red-500/[0.08] text-red-300 hover:bg-red-500/15;
+  }
+  .ui-input,
+  .ui-select {
+    @apply h-8 min-h-8 w-full rounded-md border border-white/[0.05] bg-[transparent] px-3 py-0 text-[12px] text-primary shadow-none outline-none;
+  }
+  .ui-input::placeholder {
+    @apply text-fg-faint;
+  }
+  .ui-input:focus,
+  .ui-select:focus {
+    @apply border-accent ring-1 ring-accent;
+  }
+  .ui-field {
+    @apply flex flex-col gap-2;
+  }
+  .ui-label {
+    @apply font-heading text-[10px] uppercase tracking-[.16em] text-muted;
+  }
+  .ui-card {
+    @apply overflow-hidden rounded-[10px] border border-white/[0.05] bg-[#09090a];
+  }
+  .ui-card-body {
+    @apply rounded-lg border border-white/[0.05] bg-[#0e0e0f] p-4 shadow-sm;
+  }
+  .ui-empty-card {
+    @apply flex min-h-70 flex-col items-center justify-center rounded-[10px] border border-white/[0.05] bg-white/[0.025] p-6 text-center;
+  }
+  .ui-icon-tile {
+    @apply grid size-9 place-items-center rounded-lg border border-white/[0.05] bg-white/[0.04] text-muted;
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}

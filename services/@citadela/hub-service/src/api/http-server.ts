@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { networkInterfaces } from "node:os";
 import { randomUUID } from "node:crypto";
 import { HeaderMap } from "@apollo/server";
 import type { Command } from "@citadela/protocol";
@@ -78,7 +79,14 @@ export class HubHttpServer {
     const url = new URL(request.url ?? "/", "http://localhost");
     if (url.pathname === "/api/v1/setup/status" && request.method === "GET") {
       if (!isLoopback(request)) { sendJson(response, 403, { error: "Setup is available only from localhost" }); return; }
-      sendJson(response, 200, { configured: this.options.profileAuth ? await this.options.profileAuth.isConfigured() : true });
+      if (this.options.profileAuth) {
+        const profile = await this.options.profileAuth.getProfile();
+        sendJson(response, 200, {
+          configured: await this.options.profileAuth.isConfigured(),
+          profileCreated: Boolean(profile),
+          ...(profile ? { profile: { displayName: profile.displayName, avatarBase64: profile.avatarBase64 ?? null } } : {}),
+        });
+      } else sendJson(response, 200, { configured: true, profileCreated: true });
       return;
     }
     if (url.pathname === "/api/v1/setup/profile" && request.method === "POST") { await this.setupProfile(request, response); return; }
@@ -108,6 +116,10 @@ export class HubHttpServer {
       return;
     }
     if (!session) { sendJson(response, 401, { error: "Unauthorized" }); return; }
+    if (url.pathname === "/api/v1/network/connection-info" && request.method === "GET") {
+      sendJson(response, 200, { interfaces: discoverPrivateIpv4Interfaces() });
+      return;
+    }
     if (url.pathname === "/graphql") { await this.graphqlRequest(request, response, session); return; }
     if (url.pathname === "/api/v1/events" && request.method === "GET") { this.eventsRequest(request, response); return; }
     if (url.pathname === "/api/v1/network/providers" && request.method === "GET") { sendJson(response, 200, await this.networkProviders.list()); return; }
@@ -235,7 +247,10 @@ export class HubHttpServer {
     const body = await readJson(request);
     if (typeof body?.deviceId !== "string" || typeof body?.type !== "string") { sendJson(response, 400, { error: "deviceId and type are required" }); return; }
     try {
-      const record = await this.options.commands.request(actorId, { deviceId: body.deviceId, type: body.type } as Omit<Command, "id">);
+      const command = body.type === "device.system.shell.execute"
+        ? { deviceId: body.deviceId, type: body.type, executable: body.executable, args: body.args, ...(typeof body.cwd === "string" ? { cwd: body.cwd } : {}), ...(typeof body.timeoutMs === "number" ? { timeoutMs: body.timeoutMs } : {}) }
+        : { deviceId: body.deviceId, type: body.type };
+      const record = await this.options.commands.request(actorId, command as Omit<Command, "id">);
       sendJson(response, 202, viewCommand(record));
     } catch (error) { sendJson(response, error instanceof Error && error.name === "CommandAuthorizationError" ? 403 : 400, { error: error instanceof Error ? error.message : "Invalid command" }); }
   }
@@ -273,6 +288,43 @@ export class HubHttpServer {
     try { sendJson(response, 200, viewCommand(await this.options.commands.confirm(actorId, commandId))); }
     catch (error) { sendJson(response, error instanceof Error && error.name === "CommandAuthorizationError" ? 403 : 409, { error: error instanceof Error ? error.message : "Unable to confirm command" }); }
   }
+}
+
+function discoverPrivateIpv4Interfaces(): Array<{ name: string; address: string }> {
+  const addresses: Array<{ name: string; address: string; priority: number }> = [];
+  for (const [interfaceName, entries] of Object.entries(networkInterfaces())) {
+    const priority = interfacePriority(interfaceName);
+    for (const entry of entries ?? []) {
+      if (entry.family !== "IPv4" || entry.internal || !isPrivateIpv4(entry.address)) continue;
+      addresses.push({ name: interfaceName, address: entry.address, priority });
+    }
+  }
+  const configuredHost = process.env.CITADELA_PUBLIC_HOST?.trim();
+  const bestPriority = addresses.reduce((best, item) => Math.min(best, item.priority), Number.POSITIVE_INFINITY);
+  const configured = configuredHost && isPrivateIpv4(configuredHost)
+    ? [{ name: "Configured host", address: configuredHost }]
+    : [];
+  return [
+    ...configured,
+    ...addresses
+      .filter(({ priority }) => priority === bestPriority)
+      .sort((left, right) => left.priority - right.priority || left.address.localeCompare(right.address))
+      .map(({ name, address }) => ({ name, address })),
+  ].filter((entry, index, all) => all.findIndex((candidate) => candidate.address === entry.address) === index);
+}
+
+function interfacePriority(name: string): number {
+  if (/virtual|hyper-?v|wsl|docker|vpn|radmin|loopback|veth/i.test(name)) return 20;
+  if (/wi-?fi|wireless|ethernet/i.test(name)) return 0;
+  return 10;
+}
+
+function isPrivateIpv4(address: string): boolean {
+  const octets = address.split(".").map(Number);
+  if (octets.length !== 4 || octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) return false;
+  const first = octets[0] ?? -1;
+  const second = octets[1] ?? -1;
+  return first === 10 || (first === 172 && second >= 16 && second <= 31) || (first === 192 && second === 168);
 }
 
 function viewCommand(record: CommandRecord): Record<string, unknown> {

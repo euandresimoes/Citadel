@@ -2,7 +2,6 @@ import { useId, useState } from "react";
 import BaseModal from "../../base/modals/BaseModal";
 import ButtonDelete from "../../base/buttons/ButtonDelete";
 import ButtonSecondary from "../../base/buttons/ButtonSecondary";
-import "./ConfirmationDialog.scss";
 
 export interface ConfirmationDialogProps {
   open: boolean;
@@ -30,9 +29,9 @@ function ConfirmationDialog({ open, title, message, confirmLabel = "Confirm", ca
 
   const cancel = (): void => { if (!pending) onCancel(); };
   return <BaseModal open={open} title={title} onClose={cancel} descriptionId={descriptionId}>
-    <p id={descriptionId} className="confirmation-dialog__message">{message}</p>
-    {error ? <p className="confirmation-dialog__error" role="alert">{error}</p> : null}
-    <footer className="confirmation-dialog__actions">
+    <p id={descriptionId} className="text-sm leading-6 text-muted">{message}</p>
+    {error ? <p className="mt-3 text-xs text-red-300" role="alert">{error}</p> : null}
+    <footer className="mt-6 flex justify-end gap-2">
       <ButtonSecondary onClick={cancel} disabled={pending}>{cancelLabel}</ButtonSecondary>
       <ButtonDelete onClick={() => void confirm()} disabled={pending} aria-busy={pending}>{pending ? pendingLabel : confirmLabel}</ButtonDelete>
     </footer>

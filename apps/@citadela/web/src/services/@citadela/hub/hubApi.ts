@@ -8,11 +8,14 @@ export interface HubApiError {
 
 export interface HubSetupStatus {
   configured: boolean;
+  profileCreated?: boolean;
+  profile?: Pick<HubProfile, "displayName" | "avatarBase64">;
 }
 
 export interface HubProfile { id: string; displayName: string; avatarBase64: string | null; totpEnabled: boolean; }
 export interface TotpEnrollment { otpauthUri: string; qrCodeDataUrl: string; }
 export interface ProviderConfig { mode: "lan" | "headscale"; enabled: boolean; endpoint?: string; controlPlaneUrl?: string; }
+export interface HubConnectionInfo { interfaces: Array<{ name: string; address: string }>; }
 
 export interface PairingRequest {
   requestId: string;
@@ -56,7 +59,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export const hubApi = {
   getSetupStatus: (): Promise<HubSetupStatus> => request<HubSetupStatus>("/api/v1/setup/status"),
-  createProfile: (input: { password: string; displayName?: string }): Promise<void> => request<void>("/api/v1/setup/profile", {
+  createProfile: (input: { password: string; displayName?: string; avatarBase64?: string }): Promise<void> => request<void>("/api/v1/setup/profile", {
     method: "POST",
     body: JSON.stringify(input),
   }),
@@ -68,6 +71,7 @@ export const hubApi = {
   confirmTotpEnrollment: (token: string): Promise<{ recoveryCodes: string[] }> => request<{ recoveryCodes: string[] }>("/api/v1/auth/totp/confirm", { method: "POST", headers: csrfHeaders(), body: JSON.stringify({ token }) }),
   disableTotp: (password: string): Promise<void> => request<void>("/api/v1/auth/totp/disable", { method: "POST", headers: csrfHeaders(), body: JSON.stringify({ password }) }),
   listProviders: (): Promise<ProviderConfig[]> => request<ProviderConfig[]>("/api/v1/network/providers"),
+  getConnectionInfo: (): Promise<HubConnectionInfo> => request<HubConnectionInfo>("/api/v1/network/connection-info"),
   configureProvider: (input: ProviderConfig): Promise<ProviderConfig> => request<ProviderConfig>("/api/v1/network/providers", { method: "PUT", headers: csrfHeaders(), body: JSON.stringify(input) }),
   login: (method: "password" | "otp", credential: string): Promise<void> => request<void>("/api/v1/auth/login", {
     method: "POST",

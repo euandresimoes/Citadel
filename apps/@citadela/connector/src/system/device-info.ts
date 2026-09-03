@@ -1,7 +1,13 @@
 import os from "node:os";
-import type { DeviceInfo, SystemInfo, SystemMetrics } from "@citadela/protocol";
+import type { DeviceInfo, Permission, SystemInfo, SystemMetrics } from "@citadela/protocol";
 
-export function collectDeviceInfo(): DeviceInfo {
+export function collectDeviceInfo(permissions: Permission[] = [
+  "permission.system.info.read",
+  "permission.system.metrics.read",
+  "permission.system.power.restart",
+  "permission.system.power.shutdown",
+  "permission.system.power.sleep",
+]): DeviceInfo {
   const platform = os.platform();
   const devicePlatform =
     platform === "win32"
@@ -26,14 +32,9 @@ export function collectDeviceInfo(): DeviceInfo {
       "capability.system.power.restart",
       "capability.system.power.shutdown",
       "capability.system.power.sleep",
+      "capability.system.terminal",
     ],
-    permissions: [
-      "permission.system.info.read",
-      "permission.system.metrics.read",
-      "permission.system.power.restart",
-      "permission.system.power.shutdown",
-      "permission.system.power.sleep",
-    ],
+    permissions,
   };
 }
 

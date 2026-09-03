@@ -21,4 +21,16 @@ describe("ViewportComposable", () => {
     expect(() => ViewportComposable.changeView("https://example.com")).toThrow("internal paths");
     expect(() => ViewportComposable.changeView("//example.com")).toThrow("internal paths");
   });
+
+  it("replaces the root route without adding browser history", () => {
+    window.history.replaceState({}, "", "/");
+    const listener = vi.fn();
+    const unsubscribe = ViewportComposable.subscribe(listener);
+
+    ViewportComposable.replaceView("/dashboard");
+
+    expect(ViewportComposable.getCurrentRoute()).toBe("/dashboard");
+    expect(listener).toHaveBeenCalledOnce();
+    unsubscribe();
+  });
 });

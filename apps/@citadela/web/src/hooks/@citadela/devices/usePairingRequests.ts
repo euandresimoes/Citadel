@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { hubApi, type PairingRequest } from "../../../services/@citadela/hub/hubApi";
 
 export function usePairingRequests() {
@@ -6,15 +6,17 @@ export function usePairingRequests() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [actingRequestId, setActingRequestId] = useState<string | null>(null);
+  const hasLoadedRef = useRef(false);
 
   const refresh = useCallback(async () => {
-    setLoading(true);
+    if (!hasLoadedRef.current) setLoading(true);
     setError(null);
     try {
       setRequests(await hubApi.listPairingRequests());
     } catch (cause) {
       setError(cause instanceof Error ? cause : new Error("Unable to load pairing requests"));
     } finally {
+      hasLoadedRef.current = true;
       setLoading(false);
     }
   }, []);

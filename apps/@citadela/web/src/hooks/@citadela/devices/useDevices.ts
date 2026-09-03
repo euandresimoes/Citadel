@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { query } from "../../../services/@citadela/hub/graphqlClient";
 
 export interface Device {
@@ -39,15 +39,17 @@ export function useDevices() {
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const hasLoadedRef = useRef(false);
 
   const refresh = useCallback(async () => {
-    setLoading(true);
+    if (!hasLoadedRef.current) setLoading(true);
     setError(null);
     try {
       setDevices((await query<DevicesQueryData>(devicesQuery)).devices);
     } catch (cause) {
       setError(cause instanceof Error ? cause : new Error("Unable to load devices"));
     } finally {
+      hasLoadedRef.current = true;
       setLoading(false);
     }
   }, []);

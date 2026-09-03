@@ -7,6 +7,7 @@ import {
   HubHelloMessageSchema,
   PROTOCOL_VERSION,
   PairingPendingMessageSchema,
+  ShellCommandSchema,
 } from "../src/index.js";
 import { SystemMetricsSchema } from "../src/devices/system-metrics.js";
 
@@ -62,6 +63,24 @@ describe("Citadela protocol", () => {
         success: false,
       }).success,
     ).toBe(false);
+  });
+
+  it("bounds shell execution requests", () => {
+    expect(ShellCommandSchema.parse({
+      id: "cmd-shell-01",
+      type: "device.system.shell.execute",
+      deviceId: "device-01",
+      executable: "whoami",
+      args: [],
+    }).timeoutMs).toBe(30_000);
+    expect(() => ShellCommandSchema.parse({
+      id: "cmd-shell-01",
+      type: "device.system.shell.execute",
+      deviceId: "device-01",
+      executable: "whoami",
+      args: [],
+      timeoutMs: 999_999,
+    })).toThrow();
   });
 
   it("accepts the hub handshake response", () => {

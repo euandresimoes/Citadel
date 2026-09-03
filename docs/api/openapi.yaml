@@ -16,7 +16,7 @@ paths:
   /api/v1/setup/status:
     get:
       tags: [Setup]
-      summary: Check whether the local profile has been configured
+      summary: Check whether the local profile has been created and configured
       description: Only loopback requests are accepted.
       responses:
         '200':
@@ -260,8 +260,10 @@ components:
   schemas:
     SetupStatus:
       type: object
-      required: [configured]
-      properties: { configured: { type: boolean } }
+      required: [configured, profileCreated]
+      properties:
+        configured: { type: boolean, description: True after OTP enrollment is confirmed. }
+        profileCreated: { type: boolean, description: True after the local profile has been created. }
     ProfileSetup:
       type: object
       required: [password]

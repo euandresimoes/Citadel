@@ -840,9 +840,45 @@ pnpm --filter @citadela/connector dev
 
 The Connector can be configured and started through the `citadela` CLI:
 
+### Published installation
+
+Install the native CLI on a managed device with the command for its operating
+system:
+
+Linux or macOS:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/euandresimoes/Citadel/dev/scripts/install/install.sh | sh
+```
+
+Windows PowerShell:
+
+```powershell
+curl.exe -fsSL https://raw.githubusercontent.com/euandresimoes/Citadel/dev/scripts/install/install.ps1 -o "$env:TEMP\citadela-install.ps1"; powershell -ExecutionPolicy Bypass -File "$env:TEMP\citadela-install.ps1"
+```
+
+Alternatively, run the published package directly with npm:
+
+```bash
+npx --yes @citadela/cli@0.5.11
+```
+
+After installation, open a new terminal on Windows so the updated `PATH` is
+available. The installer selects the native OpenTUI runtime for the detected
+operating system and CPU architecture.
+
+```bash
+# Or configure and run it non-interactively
+npx @citadela/cli init --hub ws://<hub-host>:45523/realtime/ --network lan
+npx @citadela/cli status
+npx @citadela/cli connect
+```
+
+For local repository development:
+
 ```bash
 pnpm --filter @citadela/cli build
-node apps/@citadela/cli/dist/cli.js init --hub ws://localhost:4000 --network lan
+node apps/@citadela/cli/dist/cli.js init --hub ws://localhost:45523/realtime/ --network lan
 node apps/@citadela/cli/dist/cli.js status
 node apps/@citadela/cli/dist/cli.js connect
 ```

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { generate } from "otplib";
 import { HubCommandService, HubHttpServer, HubRuntime, InMemoryProfileRepository, LocalSessionManager, ProfileAuthenticationService } from "../src/index.js";
 import { InMemoryPairingService } from "@citadela/device-service";
 import { loadOrCreateIdentity, MemoryIdentityStore } from "@citadela/connector";
@@ -120,15 +121,39 @@ describe("HubHttpServer", () => {
     await server.ready();
     const base = `http://127.0.0.1:${server.port()}`;
     const status = await fetch(`${base}/api/v1/setup/status`);
-    await expect(status.json()).resolves.toEqual({ configured: false });
+    await expect(status.json()).resolves.toEqual({ configured: false, profileCreated: false });
     const setup = await fetch(`${base}/api/v1/setup/profile`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ password: "a-very-strong-password", displayName: "Owner" }) });
     expect(setup.status).toBe(201);
+    const setupCookies = setup.headers.getSetCookie();
+    const setupCookieHeader = setupCookies.map((cookie) => cookie.split(";", 1)[0]).join("; ");
+    const setupCsrfCookie = setupCookies.find((cookie) => cookie.startsWith("citadela_csrf="));
+    const setupCsrfToken = setupCsrfCookie?.split(";", 1)[0].split("=", 2)[1] ?? "";
+
     const login = await fetch(`${base}/api/v1/auth/login`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ method: "password", credential: "a-very-strong-password" }) });
-    expect(login.status).toBe(204);
-    const cookies = login.headers.getSetCookie();
+    expect(login.status).toBe(409);
+
+    const enrollment = await fetch(`${base}/api/v1/auth/totp/enroll`, {
+      method: "POST",
+      headers: { cookie: setupCookieHeader, "x-citadela-csrf": setupCsrfToken },
+    });
+    expect(enrollment.status).toBe(200);
+    const enrollmentBody = await enrollment.json() as { otpauthUri: string };
+    const secret = new URL(enrollmentBody.otpauthUri).searchParams.get("secret");
+    expect(secret).toBeTruthy();
+
+    const confirmation = await fetch(`${base}/api/v1/auth/totp/confirm`, {
+      method: "POST",
+      headers: { cookie: setupCookieHeader, "x-citadela-csrf": setupCsrfToken, "content-type": "application/json" },
+      body: JSON.stringify({ token: await generate({ secret: secret! }) }),
+    });
+    expect(confirmation.status).toBe(200);
+
+    const authenticatedLogin = await fetch(`${base}/api/v1/auth/login`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ method: "password", credential: "a-very-strong-password" }) });
+    expect(authenticatedLogin.status).toBe(204);
+    const cookies = authenticatedLogin.headers.getSetCookie();
     const cookieHeader = cookies.map((cookie) => cookie.split(";", 1)[0]).join("; ");
     const profile = await fetch(`${base}/api/v1/auth/profile`, { headers: { cookie: cookieHeader } });
-    await expect(profile.json()).resolves.toMatchObject({ displayName: "Owner", totpEnabled: false });
+    await expect(profile.json()).resolves.toMatchObject({ displayName: "Owner", totpEnabled: true });
     await server.close();
   });
 });

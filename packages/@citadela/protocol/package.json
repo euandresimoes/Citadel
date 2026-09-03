@@ -1,12 +1,14 @@
 {
   "name": "@citadela/protocol",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Shared runtime-validated communication contracts for Citadela Hub and Connectors.",
   "type": "module",
-  "private": true,
   "files": [
     "dist"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",

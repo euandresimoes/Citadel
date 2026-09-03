@@ -13,8 +13,10 @@ describe("authentication inputs", () => {
 
   it("configures OTP input semantics", () => {
     render(<InputOtp label="Authentication code" name="otp" required />);
-    expect(screen.getByLabelText("Authentication code")).toHaveAttribute("inputmode", "numeric");
-    expect(screen.getByLabelText("Authentication code")).toHaveAttribute("autocomplete", "one-time-code");
-    expect(screen.getByLabelText("Authentication code")).toHaveAttribute("maxlength", "6");
+    const inputs = screen.getAllByRole("textbox");
+    expect(inputs).toHaveLength(6);
+    expect(inputs[0]).toHaveAttribute("inputmode", "numeric");
+    expect(inputs[0]).toHaveAttribute("autocomplete", "one-time-code");
+    expect(inputs[0]).toHaveAttribute("maxlength", "1");
   });
 });

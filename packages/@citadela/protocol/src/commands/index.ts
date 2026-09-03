@@ -4,7 +4,7 @@ import {
   ShutdownCommandSchema,
   SleepCommandSchema,
 } from "./power/index.js";
-import { SystemInfoCommandSchema, SystemMetricsCommandSchema } from "./system/index.js";
+import { ShellCommandSchema, SystemInfoCommandSchema, SystemMetricsCommandSchema } from "./system/index.js";
 
 export * from "./power/index.js";
 export * from "./result.js";
@@ -16,6 +16,7 @@ export const CommandSchema = z.discriminatedUnion("type", [
   SleepCommandSchema,
   SystemInfoCommandSchema,
   SystemMetricsCommandSchema,
+  ShellCommandSchema,
 ]);
 
 export type Command = z.infer<typeof CommandSchema>;

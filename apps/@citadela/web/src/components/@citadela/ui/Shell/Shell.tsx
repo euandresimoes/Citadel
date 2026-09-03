@@ -1,10 +1,9 @@
 import Sidebar from "./Sidebar/Sidebar";
 import Viewport from "./Viewport/Viewport";
-import "./Shell.scss";
 
 function Shell() {
   return (
-    <main className="app-shell">
+    <main className="flex h-screen w-screen items-center justify-center gap-8 overflow-hidden bg-canvas text-primary">
       <Sidebar />
       <Viewport />
     </main>

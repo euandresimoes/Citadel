@@ -21,8 +21,11 @@ export function useHubAuth() {
     }
   }, []);
 
-  const createProfile = useCallback(async (password: string, displayName?: string) => {
-    await hubApi.createProfile({ password, ...(displayName ? { displayName } : {}) });
+  const createProfile = useCallback(async (password: string, displayName?: string, avatarBase64?: string) => {
+    await hubApi.createProfile({ password, ...(displayName ? { displayName } : {}), ...(avatarBase64 ? { avatarBase64 } : {}) });
+  }, []);
+
+  const completeSetup = useCallback(async () => {
     await refreshSetup();
     await refreshSession();
   }, [refreshSetup, refreshSession]);
@@ -43,6 +46,7 @@ export function useHubAuth() {
     setupLoading,
     setupError,
     createProfile,
+    completeSetup,
     login,
   };
 }

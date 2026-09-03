@@ -1,11 +1,13 @@
+#!/usr/bin/env node
+
 import { parseArgs } from "node:util";
-import { Connector, FileIdentityStore, PairingRequiredError, loadOrCreateIdentity } from "@citadela/connector";
+import { existsSync } from "node:fs";
+import { Connector, FileIdentityStore, FilePermissionPolicyStore, PairingRequiredError, PermissionLevelSchema, PermissionSchema, loadOrCreateIdentity, loadOrCreatePermissionPolicy, policyForLevel, startPrivilegedHelper } from "@citadela/connector";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import { pathToFileURL } from "node:url";
 import { startTui } from "./tui/start.js";
 import { configDirectory, configPath, loadConfig, mergeConfig, saveConfig, type CliNetworkMode } from "./config/config.js";
-import { installService, renderSystemdUnit, serviceFilePath, serviceName, windowsServiceCommand } from "./service/service-manager.js";
+import { installPrivilegedHelperService, installService, prepareLinuxServiceConfig, renderSystemdUnit, restartService, serviceFilePath, serviceName, windowsServiceCommand } from "./service/service-manager.js";
 
 function configUpdates(options: CliOptions): { hubUrl?: string; network?: CliNetworkMode; deviceId?: string } {
   return {
@@ -59,7 +61,7 @@ export function runCli(argv: string[] = process.argv.slice(2)): void {
 
   if (options.command === undefined) {
     const stored = loadOrCreateIdentity(new FileIdentityStore(identityPath()));
-    startTui({ stored, hub: options.hub, network: options.network });
+    startTui({ stored, hub: options.hub ?? savedConfig.hubUrl, network: options.network ?? savedConfig.network });
     return;
   }
 
@@ -78,7 +80,52 @@ export function runCli(argv: string[] = process.argv.slice(2)): void {
     return;
   }
 
-  if (options.command === "connect" || options.command === "connector connect") {
+  if (options.command === "permissions status" || options.command === "connector permissions status") {
+    const policy = loadOrCreatePermissionPolicy(new FilePermissionPolicyStore());
+    console.log(JSON.stringify(policy, null, 2));
+    return;
+  }
+
+  if (options.command === "helper run" || options.command === "connector helper run") {
+    void startPrivilegedHelper().then((helper) => {
+      console.log("Citadela privileged helper is listening on the local IPC endpoint.");
+      process.once("SIGINT", () => { void helper.close().finally(() => process.exit(0)); });
+      process.once("SIGTERM", () => { void helper.close().finally(() => process.exit(0)); });
+    }).catch((error: unknown) => {
+      console.error(error instanceof Error ? error.message : error);
+      process.exitCode = 1;
+    });
+    return;
+  }
+
+  if (options.command.startsWith("permissions set ") || options.command.startsWith("connector permissions set ")) {
+    const level = options.command.split(" ").at(-1);
+    const policy = policyForLevel(PermissionLevelSchema.parse(level));
+    new FilePermissionPolicyStore().save(policy);
+    console.log(`Permission level set to ${policy.level}.`);
+    return;
+  }
+
+  if (options.command.startsWith("permissions grant ") || options.command.startsWith("connector permissions grant ") || options.command.startsWith("permissions revoke ") || options.command.startsWith("connector permissions revoke ")) {
+    const parts = options.command.split(" ");
+    const operation = parts.at(-2);
+    const permission = PermissionSchema.parse(parts.at(-1));
+    const store = new FilePermissionPolicyStore();
+    const current = loadOrCreatePermissionPolicy(store);
+    const permissions = operation === "grant"
+      ? [...new Set([...current.permissions, permission])]
+      : current.permissions.filter((value) => value !== permission);
+    store.save({ ...current, permissions });
+    console.log(`${operation === "grant" ? "Granted" : "Revoked"} ${permission}.`);
+    return;
+  }
+
+  if (options.command === "connect" || options.command === "connector connect" || options.command === "reconnect" || options.command === "connector reconnect") {
+    if (options.command.includes("reconnect") && (process.platform === "linux" || process.platform === "win32") && existsSync(serviceFilePath())) {
+      restartService();
+      console.log(`Service ${serviceName} restarted using the saved Citadela configuration.`);
+      return;
+    }
     const stored = loadOrCreateIdentity(new FileIdentityStore(identityPath()));
     const hub = options.hub ?? savedConfig.hubUrl;
     if (!hub) throw new Error("The --hub option is required for connect (or run init --hub <url>)");
@@ -105,21 +152,24 @@ export function runCli(argv: string[] = process.argv.slice(2)): void {
   }
 
   if (options.command === "service install" || options.command === "connector service install") {
-    const serviceOptions = { executable: process.execPath, cliEntry: process.argv[1] ?? "citadela", configDirectory: configDirectory() };
+    const serviceOptions = { executable: process.execPath, cliEntry: process.argv[1] ?? "citadela", configDirectory: options.dryRun ? configDirectory() : prepareLinuxServiceConfig(configDirectory()) };
     if (options.dryRun) {
       console.log(process.platform === "win32" ? windowsServiceCommand(serviceOptions).join(" ") : renderSystemdUnit(serviceOptions));
       return;
     }
+    installPrivilegedHelperService(serviceOptions);
     installService(serviceOptions);
-    console.log(`Service ${serviceName} installed at ${serviceFilePath()}`);
+    console.log(`Services ${serviceName} and citadela-privileged-helper installed.`);
     return;
   }
 
   console.log("Citadela CLI");
-  console.log("Usage: citadela <init|status|connect|service install> [options]");
+  console.log("Usage: citadela <init|status|connect|reconnect|permissions|helper run|service install> [options]");
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+const isCliEntrypoint = import.meta.url.endsWith("/dist/cli.js");
+
+if (isCliEntrypoint) {
   try {
     runCli();
   } catch (error) {

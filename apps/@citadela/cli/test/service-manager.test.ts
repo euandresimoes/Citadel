@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { renderSystemdUnit, renderWindowsServiceScript, serviceFilePath, windowsServiceCommand } from "../src/service/service-manager.js";
+import { helperServiceFilePath, renderPrivilegedHelperSystemdUnit, renderSystemdUnit, renderWindowsServiceScript, serviceFilePath, serviceLogs, serviceStatus, windowsServiceCommand } from "../src/service/service-manager.js";
 
 const options = {
   executable: "/usr/bin/node",
@@ -27,5 +27,21 @@ describe("Connector service definitions", () => {
   it("uses native service locations", () => {
     expect(serviceFilePath("linux")).toBe("/etc/systemd/system/citadela-connector.service");
     expect(serviceFilePath("win32")).toMatch(/[\\/]Citadela[\\/]citadela-connector\.cmd$/);
+  });
+
+  it("keeps the connector service restartable by systemd", () => {
+    expect(renderSystemdUnit(options)).toContain("Restart=on-failure");
+    expect(renderSystemdUnit(options)).toContain("RestartSec=5");
+  });
+
+  it("keeps the privileged helper as a separate service", () => {
+    const unit = renderPrivilegedHelperSystemdUnit(options);
+    expect(unit).toContain('"connector" "helper" "run"');
+    expect(helperServiceFilePath("linux")).toBe("/etc/systemd/system/citadela-privileged-helper.service");
+  });
+
+  it("reports unsupported service platforms safely", () => {
+    expect(serviceStatus("freebsd" as NodeJS.Platform)).toBe("unknown");
+    expect(serviceLogs("freebsd" as NodeJS.Platform)).toContain("not supported");
   });
 });

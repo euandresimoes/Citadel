@@ -59,7 +59,12 @@ export class ProfileAuthenticationService {
     if (encryptionKey.length !== 32) throw new Error("Profile encryption key must be 32 bytes");
   }
 
-  public async isConfigured(): Promise<boolean> { return Boolean(await this.repository.get()); }
+  public async isProfileCreated(): Promise<boolean> { return Boolean(await this.repository.get()); }
+
+  public async isConfigured(): Promise<boolean> {
+    const profile = await this.repository.get();
+    return Boolean(profile?.totpSecretEncrypted);
+  }
 
   public async getProfile(): Promise<HubProfile | undefined> { return this.repository.get(); }
 
@@ -85,7 +90,7 @@ export class ProfileAuthenticationService {
   }
 
   public async createProfile(input: ProfileSetupInput): Promise<HubProfile> {
-    if (await this.isConfigured()) throw new ProfileAlreadyConfiguredError("Hub profile is already configured");
+    if (await this.isProfileCreated()) throw new ProfileAlreadyConfiguredError("Hub profile is already configured");
     if (input.password.length < 12) throw new Error("Password must contain at least 12 characters");
     const now = new Date();
     const profile: HubProfile = {

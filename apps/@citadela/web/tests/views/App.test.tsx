@@ -12,7 +12,7 @@ describe("App authentication gate", () => {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
     });
     render(<App />);
-    await waitFor(() => expect(screen.getByRole("heading", { name: "Create your Citadela profile" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Create your account" })).toBeInTheDocument());
   });
 
   it("shows login when the profile exists without a session", async () => {
@@ -21,7 +21,7 @@ describe("App authentication gate", () => {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
     });
     render(<App />);
-    await waitFor(() => expect(screen.getByRole("heading", { name: "Sign in to Citadela" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("dialog", { name: "Sign in to Citadela" })).toBeInTheDocument());
   });
 
   it("shows the Shell for an authenticated session", async () => {

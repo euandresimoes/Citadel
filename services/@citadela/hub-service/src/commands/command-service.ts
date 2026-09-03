@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { Command, CommandResult, DeviceId } from "@citadela/protocol";
+import { CommandSchema, type Command, type CommandResult, type DeviceId } from "@citadela/protocol";
 
 export type CommandState = "awaiting_confirmation" | "dispatched" | "succeeded" | "failed" | "expired";
 
@@ -72,7 +72,7 @@ export class HubCommandService {
   }
 
   public async request(actorId: string, command: Omit<Command, "id">): Promise<CommandRecord> {
-    const commandWithId = { ...command, id: randomUUID() } as Command;
+    const commandWithId = CommandSchema.parse({ ...command, id: randomUUID() });
     if (!(await this.authorizer.authorize(actorId, commandWithId.deviceId, commandWithId))) {
       throw new CommandAuthorizationError();
     }
@@ -165,5 +165,6 @@ export class HubCommandService {
 function requiresConfirmation(command: Command): boolean {
   return command.type === "device.system.power.sleep"
     || command.type === "device.system.power.restart"
-    || command.type === "device.system.power.shutdown";
+    || command.type === "device.system.power.shutdown"
+    || command.type === "device.system.shell.execute";
 }

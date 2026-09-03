@@ -1,5 +1,4 @@
 import type { ReactElement } from "react";
-import "./SidebarNav.scss";
 import { PiDeviceTabletSpeaker, PiHouse, PiGear } from "react-icons/pi";
 import { useCurrentRoute } from "../../../../../../hooks/@citadela/routing/useCurrentRoute";
 import { useNavigation } from "../../../../../../hooks/@citadela/routing/useNavigation";
@@ -12,17 +11,17 @@ type NavItem = {
 
 const NavItems: NavItem[] = [
   {
-    icon: <PiHouse className="app-sidebar-nav-icon" />,
+    icon: <PiHouse className="size-4" />,
     label: "Dashboard",
     route: "/dashboard",
   },
   {
-    icon: <PiDeviceTabletSpeaker className="app-sidebar-nav-icon" />,
+    icon: <PiDeviceTabletSpeaker className="size-4" />,
     label: "Devices",
     route: "/devices",
   },
-  { icon: <PiGear className="app-sidebar-nav-icon" />, label: "Profile", route: "/settings/profile" },
-  { icon: <PiGear className="app-sidebar-nav-icon" />, label: "Network", route: "/settings/network" },
+  { icon: <PiGear className="size-4" />, label: "Profile", route: "/settings/profile" },
+  { icon: <PiGear className="size-4" />, label: "Network", route: "/settings/network" },
 ];
 
 function SidebarNav() {
@@ -30,12 +29,12 @@ function SidebarNav() {
   const { navigate } = useNavigation();
 
   return (
-    <nav className="app-sidebar-nav" aria-label="Main navigation">
+    <nav className="flex flex-col gap-1" aria-label="Main navigation">
       {NavItems.map((item) => (
         <li
           key={item.route}
           onClick={() => navigate(item.route)}
-          className={`app-sidebar-nav-item${currentRoute === item.route ? " active" : ""}`}
+          className={`flex h-8 items-center gap-2 border-l-2 px-2 text-xs text-muted transition-colors hover:bg-hover hover:text-primary ${currentRoute === item.route ? "active border-accent bg-white/6 text-primary" : "border-transparent"}`}
           aria-current={currentRoute === item.route ? "page" : undefined}
         >
           {item.icon}

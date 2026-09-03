@@ -1,12 +1,18 @@
-import type { ButtonHTMLAttributes } from "react";
-import "./BaseButton.scss";
+import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 export interface BaseButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   fullWidth?: boolean;
+  icon?: ReactNode;
+  iconPosition?: "left" | "right";
 }
 
-function BaseButton({ className = "", fullWidth = false, type = "button", ...props }: BaseButtonProps) {
-  return <button {...props} type={type} className={`base-button${fullWidth ? " base-button--full-width" : ""} ${className}`.trim()} />;
+function BaseButton({ children, className = "", fullWidth = false, icon, iconPosition = "left", type = "button", ...props }: BaseButtonProps) {
+  const iconClass = icon ? ` ui-button--icon-${iconPosition}` : "";
+  return <button {...props} type={type} className={`ui-button${fullWidth ? " w-full" : ""}${iconClass} ${className}`.trim()}>
+    {iconPosition === "left" ? icon : null}
+    {children}
+    {iconPosition === "right" ? icon : null}
+  </button>;
 }
 
 export default BaseButton;

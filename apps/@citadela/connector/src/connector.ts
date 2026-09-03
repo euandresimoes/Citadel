@@ -11,12 +11,16 @@ import {
   SystemMetricsSchema,
   type NetworkMode,
   type HubHelloMessage,
+  type Permission,
+  type ShellCommand,
 } from "@citadela/protocol";
 import {
   FileIdentityStore,
   loadOrCreateIdentity,
   type IdentityStore,
 } from "./identity/identity.js";
+import { FilePermissionPolicyStore, hasPermission, loadOrCreatePermissionPolicy, type PermissionPolicyStore } from "./permissions/policy.js";
+import { LocalPrivilegedShellExecutor, type PrivilegedShellExecutor } from "./privileged/shell-ipc.js";
 import { collectDeviceInfo, collectSystemInfo, collectSystemMetrics } from "./system/device-info.js";
 import { createPowerCommandExecutor, type PowerCommandExecutor, type PowerCommandType } from "./power/index.js";
 
@@ -26,6 +30,7 @@ export interface ConnectorOptions {
   networkMode?: NetworkMode;
   heartbeatIntervalMs?: number;
   identityStore?: IdentityStore;
+  permissionPolicyStore?: PermissionPolicyStore;
   autoReconnect?: boolean;
   reconnectInitialDelayMs?: number;
   reconnectMaxDelayMs?: number;
@@ -37,6 +42,7 @@ export interface ConnectorOptions {
   };
   onMessage?: (message: CitadelaMessage) => void;
   powerExecutor?: PowerCommandExecutor;
+  shellExecutor?: PrivilegedShellExecutor;
   processedCommandLimit?: number;
 }
 
@@ -55,18 +61,23 @@ export class Connector {
   private activeUrl: string | undefined;
   private activeNetworkMode: NetworkMode | undefined;
   private heartbeatTimer: NodeJS.Timeout | undefined;
+  private lastPongAt = 0;
   private reconnectTimer: NodeJS.Timeout | undefined;
   private reconnectDelayMs: number | undefined;
   private stopped = true;
   private readonly identity;
   private readonly powerExecutor: PowerCommandExecutor;
+  private readonly shellExecutor: PrivilegedShellExecutor;
+  private readonly permissionPolicyStore: PermissionPolicyStore;
   private readonly processedCommandIds = new Set<string>();
   private readonly inFlightCommandIds = new Set<string>();
 
   public constructor(private readonly options: ConnectorOptions) {
     const store = options.identityStore ?? new FileIdentityStore(join(homedir(), ".citadela", "identity.json"));
     this.identity = loadOrCreateIdentity(store);
+    this.permissionPolicyStore = options.permissionPolicyStore ?? new FilePermissionPolicyStore();
     this.powerExecutor = options.powerExecutor ?? createPowerCommandExecutor();
+    this.shellExecutor = options.shellExecutor ?? new LocalPrivilegedShellExecutor();
   }
 
   public connect(): Promise<HubHelloMessage> {
@@ -101,6 +112,7 @@ export class Connector {
     this.networkMode = undefined;
     this.activeUrl = undefined;
     this.activeNetworkMode = undefined;
+    this.lastPongAt = 0;
   }
 
   private establish(url: string, networkMode: NetworkMode): Promise<EstablishedConnection> {
@@ -125,7 +137,7 @@ export class Connector {
           networkMode,
           protocolVersion: PROTOCOL_VERSION,
           identity: this.identity.identity,
-          device: collectDeviceInfo(),
+          device: collectDeviceInfo(loadOrCreatePermissionPolicy(this.permissionPolicyStore).permissions),
         })));
       });
 
@@ -181,9 +193,29 @@ export class Connector {
           this.sendCommandResult(socket, parsed.data.id, async () => SystemMetricsSchema.parse(collectSystemMetrics()));
           return;
         }
+        if (parsed.data.type === "device.system.shell.execute") {
+          const shellCommand = parsed.data as ShellCommand;
+          if (!settled || shellCommand.deviceId !== this.options.deviceId) return;
+          if (!hasPermission(loadOrCreatePermissionPolicy(this.permissionPolicyStore), "permission.system.terminal.use")) {
+            this.sendResult(socket, { type: "command.result", commandId: shellCommand.id, success: false, error: "Permission denied by local device policy: permission.system.terminal.use" });
+            return;
+          }
+          this.sendCommandResult(socket, shellCommand.id, () => this.shellExecutor.execute({
+            executable: shellCommand.executable,
+            args: shellCommand.args,
+            ...(shellCommand.cwd ? { cwd: shellCommand.cwd } : {}),
+            timeoutMs: shellCommand.timeoutMs,
+          }));
+          return;
+        }
         if (isPowerCommand(parsed.data)) {
           if (!settled) return;
           if (parsed.data.deviceId !== this.options.deviceId) return;
+          const permission = powerPermission(parsed.data.type);
+          if (!hasPermission(loadOrCreatePermissionPolicy(this.permissionPolicyStore), permission)) {
+            this.sendResult(socket, { type: "command.result", commandId: parsed.data.id, success: false, error: `Permission denied by local device policy: ${permission}` });
+            return;
+          }
           this.sendCommandResult(socket, parsed.data.id, () => this.powerExecutor.execute(parsed.data.type as PowerCommandType));
           return;
         }
@@ -204,12 +236,17 @@ export class Connector {
     this.networkMode = connection.networkMode;
     this.activeUrl = connection.url;
     this.activeNetworkMode = connection.networkMode;
+    this.lastPongAt = Date.now();
+    connection.socket.on("pong", () => {
+      if (this.socket === connection.socket) this.lastPongAt = Date.now();
+    });
     connection.socket.on("close", () => {
       if (this.socket !== connection.socket || this.stopped) return;
       this.stopHeartbeat();
       this.socket = undefined;
       this.connectionId = undefined;
       this.networkMode = undefined;
+      this.lastPongAt = 0;
       this.scheduleReconnect();
     });
     this.startHeartbeat();
@@ -238,15 +275,23 @@ export class Connector {
     this.stopHeartbeat();
     const interval = this.options.heartbeatIntervalMs ?? 30_000;
     this.heartbeatTimer = setInterval(() => {
-      if (this.socket?.readyState !== WebSocket.OPEN) return;
-      this.socket.send(
-        JSON.stringify({
+      const socket = this.socket;
+      if (socket?.readyState !== WebSocket.OPEN) return;
+      if (Date.now() - this.lastPongAt > interval * 2) {
+        socket.terminate();
+        return;
+      }
+      try {
+        socket.ping();
+        socket.send(JSON.stringify({
           type: "device.heartbeat",
           deviceId: this.options.deviceId,
           connectionId: this.connectionId,
           timestamp: Date.now(),
-        }),
-      );
+        }));
+      } catch {
+        socket.terminate();
+      }
     }, interval);
   }
 
@@ -290,6 +335,10 @@ function isPowerCommand(message: CitadelaMessage): message is CitadelaMessage & 
   return message.type === "device.system.power.sleep"
     || message.type === "device.system.power.restart"
     || message.type === "device.system.power.shutdown";
+}
+
+function powerPermission(commandType: "device.system.power.sleep" | "device.system.power.restart" | "device.system.power.shutdown"): Permission {
+  return `permission.system.power.${commandType.split(".").at(-1)}` as Permission;
 }
 
 export function createConnectorConnectionId(): string {
