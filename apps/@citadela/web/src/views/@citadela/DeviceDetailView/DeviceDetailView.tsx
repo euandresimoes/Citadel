@@ -32,7 +32,7 @@ function DeviceDetailView({ deviceId }: DeviceDetailViewProps) {
   if (!device) return <section aria-label="Device details"><p className="text-xs text-muted">Loading device…</p></section>;
   if (revoked) return <section aria-labelledby="device-detail-title"><h2 id="device-detail-title" className="font-heading text-lg font-semibold">{deviceId}</h2><p className="mt-2 text-xs text-muted">This device has been revoked.</p></section>;
   return <section className="flex min-w-0 flex-col gap-4" aria-labelledby="device-detail-title">
-    <div><h2 id="device-detail-title" className="font-heading text-lg font-semibold">{device.id}</h2>
+    <div><h2 id="device-detail-title" className="flex items-center gap-2 font-heading text-lg font-semibold">{device.id}{device.hostRole === "hub-host" ? <span className="rounded border border-line bg-panel px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted">Hub host</span> : null}</h2>
     <p className="mt-1 text-xs text-muted">{device.networkMode} · {device.status === "online" ? "Connected" : "Offline"}</p></div>
     <DeviceActionsPanel deviceId={device.id} online={device.status === "online"} capabilities={device.capabilities} permissions={device.permissions} />
     <p className="text-xs text-muted">Network provider: {device.networkMode === "lan" ? "LAN" : "Headscale"}</p>

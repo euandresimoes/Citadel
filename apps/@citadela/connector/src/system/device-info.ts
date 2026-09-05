@@ -7,7 +7,7 @@ export function collectDeviceInfo(permissions: Permission[] = [
   "permission.system.power.restart",
   "permission.system.power.shutdown",
   "permission.system.power.sleep",
-]): DeviceInfo {
+], hostRole: DeviceInfo["hostRole"] = "standalone"): DeviceInfo {
   const platform = os.platform();
   const devicePlatform =
     platform === "win32"
@@ -26,6 +26,7 @@ export function collectDeviceInfo(permissions: Permission[] = [
     hostname: os.hostname(),
     platform: devicePlatform,
     architecture: os.arch(),
+    hostRole,
     capabilities: [
       "capability.system.info",
       "capability.system.metrics",

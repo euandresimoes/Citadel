@@ -8,3 +8,7 @@ export * from "./api/http-server.js";
 export * from "./graphql/context.js";
 export * from "./runtime/hub-runtime.js";
 export * from "./network/provider-manager.js";
+export * from "./files/transfer-repository.js";
+export * from "./files/file-transfer-service.js";
+export * from "./files/transfer-token-service.js";
+export * from "./files/transfer-coordinator.js";

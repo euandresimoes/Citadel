@@ -33,6 +33,10 @@
       "types": "./dist/devices/index.d.ts",
       "import": "./dist/devices/index.js"
     },
+    "./files": {
+      "types": "./dist/files/index.d.ts",
+      "import": "./dist/files/index.js"
+    },
     "./messages": {
       "types": "./dist/messages/index.d.ts",
       "import": "./dist/messages/index.js"

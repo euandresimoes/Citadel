@@ -1,0 +1,13 @@
+services:
+  connector-filesystem-test:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/connector-filesystem-test.Dockerfile
+    environment:
+      CITADELA_TEST_ROOT: /test-root
+    volumes:
+      - citadela-filesystem-test:/test-root
+
+volumes:
+  citadela-filesystem-test:
+

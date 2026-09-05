@@ -3,6 +3,8 @@ import { Connector, MemoryIdentityStore, PairingRequiredError, loadOrCreateIdent
 import { InMemoryPairingService } from "@citadela/device-service";
 import { RealtimeService } from "../src/index.js";
 import type { CommandResult } from "@citadela/protocol";
+import { createHash } from "node:crypto";
+import { encodeFileTransferFrame } from "../../../../apps/@citadela/connector/src/filesystem/transfer-frame.js";
 
 describe("RealtimeService", () => {
   it("authenticates a Connector and executes a real system info command", async () => {
@@ -104,6 +106,53 @@ describe("RealtimeService", () => {
     connector.close();
     await expect.poll(() => events, { timeout: 2_000 }).toContain("device.disconnected");
     expect(service.listSessions()).toHaveLength(0);
+    await service.close();
+  });
+
+  it("transports authenticated binary frames without parsing them as protocol JSON", async () => {
+    const pairing = new InMemoryPairingService();
+    const identityStore = new MemoryIdentityStore();
+    const identity = loadOrCreateIdentity(identityStore).identity;
+    const request = await pairing.requestPairing("device-binary", identity);
+    await pairing.approve(request.requestId);
+    let service: RealtimeService;
+    let connector: Connector;
+    let resolveByHub: (payload: Buffer) => void = () => undefined;
+    const receivedByHub = new Promise<Buffer>((resolve) => { resolveByHub = resolve; });
+    service = new RealtimeService({ port: 0, pairing, onBinaryMessage: (_deviceId, payload) => resolveByHub(payload) });
+    await service!.ready();
+    connector = new Connector({ url: `ws://127.0.0.1:${service!.port()}`, deviceId: "device-binary", identityStore, onBinaryMessage: (payload) => expect(payload).toEqual(Buffer.from([4, 5, 6])) });
+    await connector.connect();
+    expect(service!.sendBinary("device-binary", Buffer.from([4, 5, 6]))).toBe(true);
+    expect(connector.sendBinary(Buffer.from([7, 8, 9]))).toBe(true);
+    await expect(receivedByHub).resolves.toEqual(Buffer.from([7, 8, 9]));
+    connector.close();
+    await service!.close();
+  });
+
+  it("relays a transfer frame only from the registered source to its destination", async () => {
+    const pairing = new InMemoryPairingService();
+    const sourceStore = new MemoryIdentityStore();
+    const destinationStore = new MemoryIdentityStore();
+    for (const [deviceId, store] of [["source", sourceStore], ["destination", destinationStore]] as const) {
+      const request = await pairing.requestPairing(deviceId, loadOrCreateIdentity(store).identity);
+      await pairing.approve(request.requestId);
+    }
+    let received: Buffer | undefined;
+    const service = new RealtimeService({ port: 0, pairing });
+    await service.ready();
+    const source = new Connector({ url: `ws://127.0.0.1:${service.port()}`, deviceId: "source", identityStore: sourceStore });
+    const destination = new Connector({ url: `ws://127.0.0.1:${service.port()}`, deviceId: "destination", identityStore: destinationStore, onBinaryMessage: (payload) => { received = payload; } });
+    await source.connect();
+    await destination.connect();
+    service.registerBinaryRoute("transfer-route", "source", "destination");
+    const payload = Buffer.from("relay");
+    const frame = encodeFileTransferFrame({ transferId: "transfer-route", itemId: "item", sequence: 0, offsetBytes: 0, byteLength: payload.length, digest: createHash("sha256").update(payload).digest("hex") }, payload);
+    expect(source.sendBinary(frame)).toBe(true);
+    await expect.poll(() => received).toEqual(frame);
+    service.unregisterBinaryRoute("transfer-route");
+    source.close();
+    destination.close();
     await service.close();
   });
 });

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { hubApi, type HubSession } from "../../../services/@citadela/hub/hubApi";
 
 interface HubSessionState {
@@ -13,17 +13,22 @@ export function useHubSession(): HubSessionState {
   const [session, setSession] = useState<HubSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const mountedRef = useRef(true);
 
   const refresh = useCallback(async () => {
+    if (!mountedRef.current) return;
     setLoading(true);
     setError(null);
     try {
-      setSession(await hubApi.getSession());
+      const nextSession = await hubApi.getSession();
+      if (mountedRef.current) setSession(nextSession);
     } catch (cause) {
-      setSession(null);
-      setError(cause instanceof Error ? cause : new Error("Unable to read Hub session"));
+      if (mountedRef.current) {
+        setSession(null);
+        setError(cause instanceof Error ? cause : new Error("Unable to read Hub session"));
+      }
     } finally {
-      setLoading(false);
+      if (mountedRef.current) setLoading(false);
     }
   }, []);
 
@@ -33,10 +38,11 @@ export function useHubSession(): HubSessionState {
   }, []);
 
   useEffect(() => {
+    mountedRef.current = true;
     const handle = window.setTimeout(() => {
       void refresh();
     }, 0);
-    return () => window.clearTimeout(handle);
+    return () => { mountedRef.current = false; window.clearTimeout(handle); };
   }, [refresh]);
 
   return { session, loading, error, refresh, logout };

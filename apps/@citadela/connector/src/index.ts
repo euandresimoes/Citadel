@@ -1,4 +1,5 @@
 export * from "./connector.js";
+export * from "./filesystem/index.js";
 export * from "./identity/identity.js";
 export * from "./power/index.js";
 export * from "./permissions/policy.js";

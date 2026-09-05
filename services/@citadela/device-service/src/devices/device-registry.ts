@@ -1,4 +1,4 @@
-import type { Capability, DeviceIdentity, NetworkMode, Permission, SystemInfo, SystemMetrics } from "@citadela/protocol";
+import type { Capability, DeviceIdentity, NetworkMode, Permission, SystemInfo, SystemMetrics, DeviceInfo } from "@citadela/protocol";
 
 export type DeviceStatus = "online" | "offline";
 
@@ -14,10 +14,11 @@ export interface DeviceRecord {
   metrics: SystemMetrics | null;
   capabilities?: Capability[];
   permissions?: Permission[];
+  hostRole?: DeviceInfo["hostRole"];
 }
 
 export interface DeviceRegistry {
-  upsertConnected(deviceId: string, identity: DeviceIdentity, networkMode: NetworkMode, connectionId: string, connectedAt: Date, capabilities?: Capability[], permissions?: Permission[]): Promise<void>;
+  upsertConnected(deviceId: string, identity: DeviceIdentity, networkMode: NetworkMode, connectionId: string, connectedAt: Date, capabilities?: Capability[], permissions?: Permission[], hostRole?: DeviceInfo["hostRole"]): Promise<void>;
   updateHeartbeat(deviceId: string, connectionId: string, lastSeenAt: Date): Promise<void>;
   updateSystemInfo(deviceId: string, connectionId: string, systemInfo: SystemInfo): Promise<void>;
   updateMetrics(deviceId: string, connectionId: string, metrics: SystemMetrics): Promise<void>;
@@ -30,9 +31,9 @@ export interface DeviceRegistry {
 export class InMemoryDeviceRegistry implements DeviceRegistry {
   private readonly records = new Map<string, DeviceRecord>();
 
-  public async upsertConnected(deviceId: string, identity: DeviceIdentity, networkMode: NetworkMode, connectionId: string, connectedAt: Date, capabilities: Capability[] = [], permissions: Permission[] = []): Promise<void> {
+  public async upsertConnected(deviceId: string, identity: DeviceIdentity, networkMode: NetworkMode, connectionId: string, connectedAt: Date, capabilities: Capability[] = [], permissions: Permission[] = [], hostRole: DeviceInfo["hostRole"] = "standalone"): Promise<void> {
     const previous = this.records.get(deviceId);
-    this.records.set(deviceId, { deviceId, identity, networkMode, connectionId, status: "online", connectedAt, lastSeenAt: connectedAt, systemInfo: previous?.systemInfo ?? null, metrics: previous?.metrics ?? null, capabilities, permissions });
+    this.records.set(deviceId, { deviceId, identity, networkMode, connectionId, status: "online", connectedAt, lastSeenAt: connectedAt, systemInfo: previous?.systemInfo ?? null, metrics: previous?.metrics ?? null, capabilities, permissions, hostRole });
   }
   public async updateHeartbeat(deviceId: string, connectionId: string, lastSeenAt: Date): Promise<void> {
     const record = this.records.get(deviceId);

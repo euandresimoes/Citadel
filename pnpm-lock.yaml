@@ -43,8 +43,8 @@ importers:
   apps/@citadela/connector:
     dependencies:
       '@citadela/protocol':
-        specifier: 0.2.0
-        version: 0.2.0
+        specifier: workspace:*
+        version: link:../../../packages/@citadela/protocol
       ws:
         specifier: ^8.18.3
         version: 8.21.3

@@ -23,6 +23,9 @@ export * from "./errors.js";
 export * from "./pairing-pending.js";
 export * from "./hub-challenge.js";
 export * from "./device-auth.js";
+export * from "./files.js";
+
+import { FileMessageSchema } from "./files.js";
 
 export const CitadelaMessageSchema = z.discriminatedUnion("type", [
   DeviceHelloMessageSchema,
@@ -39,6 +42,7 @@ export const CitadelaMessageSchema = z.discriminatedUnion("type", [
   SystemMetricsCommandSchema,
   ShellCommandSchema,
   CommandResultSchema,
+  ...FileMessageSchema.options,
 ]);
 
 export type CitadelaMessage = z.infer<typeof CitadelaMessageSchema>;

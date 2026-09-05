@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { hubApi, type HubSetupStatus } from "../../../services/@citadela/hub/hubApi";
 import { useHubSession } from "./useHubSession";
 
@@ -8,16 +8,19 @@ export function useHubAuth() {
   const [setup, setSetup] = useState<HubSetupStatus | null>(null);
   const [setupLoading, setSetupLoading] = useState(true);
   const [setupError, setSetupError] = useState<Error | null>(null);
+  const mountedRef = useRef(true);
 
   const refreshSetup = useCallback(async () => {
+    if (!mountedRef.current) return;
     setSetupLoading(true);
     setSetupError(null);
     try {
-      setSetup(await hubApi.getSetupStatus());
+      const nextSetup = await hubApi.getSetupStatus();
+      if (mountedRef.current) setSetup(nextSetup);
     } catch (cause) {
-      setSetupError(cause instanceof Error ? cause : new Error("Unable to read Hub setup status"));
+      if (mountedRef.current) setSetupError(cause instanceof Error ? cause : new Error("Unable to read Hub setup status"));
     } finally {
-      setSetupLoading(false);
+      if (mountedRef.current) setSetupLoading(false);
     }
   }, []);
 
@@ -36,8 +39,9 @@ export function useHubAuth() {
   }, [refreshSession]);
 
   useEffect(() => {
+    mountedRef.current = true;
     const handle = window.setTimeout(() => void refreshSetup(), 0);
-    return () => window.clearTimeout(handle);
+    return () => { mountedRef.current = false; window.clearTimeout(handle); };
   }, [refreshSetup]);
 
   return {

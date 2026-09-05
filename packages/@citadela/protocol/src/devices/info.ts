@@ -8,6 +8,7 @@ export const DeviceInfoSchema = z
     hostname: z.string().trim().min(1),
     platform: DevicePlatformSchema,
     architecture: z.string().trim().min(1),
+    hostRole: z.enum(["standalone", "hub-host"]).default("standalone"),
     capabilities: z.array(CapabilitySchema),
     permissions: z.array(PermissionSchema),
   })

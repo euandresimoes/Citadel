@@ -3,6 +3,7 @@ import { networkInterfaces } from "node:os";
 import { randomUUID } from "node:crypto";
 import { HeaderMap } from "@apollo/server";
 import type { Command } from "@citadela/protocol";
+import type { FileTransferRecord } from "../files/transfer-repository.js";
 import type { PairingService } from "@citadela/device-service";
 import { HubCommandService, type CommandRecord } from "../commands/command-service.js";
 import { LocalSessionManager } from "../auth/session.js";
@@ -11,6 +12,11 @@ import { HubEventBus } from "../events/event-bus.js";
 import { HubGraphqlServer } from "../graphql/server.js";
 import { commandView, RealtimeDeviceDirectory, type HubReadModel, type HubSessionSource } from "../graphql/context.js";
 import { NetworkProviderManager, type ProviderConfig } from "../network/provider-manager.js";
+import { HubFileService } from "../files/file-transfer-service.js";
+import { FileTransferTokenService } from "../files/transfer-token-service.js";
+import type { HubTransferCoordinator } from "../files/transfer-coordinator.js";
+import type { HubFileGateway } from "../files/file-gateway.js";
+import { FileOperationSchema } from "@citadela/protocol";
 
 export interface HubHttpServerOptions {
   host?: string;
@@ -23,6 +29,11 @@ export interface HubHttpServerOptions {
   pairing?: PairingService;
   profileAuth?: ProfileAuthenticationService;
   networkProviders?: NetworkProviderManager;
+  fileTransfers?: HubFileService;
+  fileTransferTokens?: FileTransferTokenService;
+  transferRouter?: { registerBinaryRoute(transferId: string, sourceDeviceId: string, destinationDeviceId: string): void; unregisterBinaryRoute(transferId: string): void };
+  transferCoordinator?: HubTransferCoordinator;
+  fileGateway?: HubFileGateway;
 }
 
 export class HubHttpServer {
@@ -124,6 +135,19 @@ export class HubHttpServer {
     if (url.pathname === "/api/v1/events" && request.method === "GET") { this.eventsRequest(request, response); return; }
     if (url.pathname === "/api/v1/network/providers" && request.method === "GET") { sendJson(response, 200, await this.networkProviders.list()); return; }
     if (url.pathname === "/api/v1/network/providers" && request.method === "PUT") { await this.configureProvider(request, response, session); return; }
+    if (url.pathname === "/api/v1/files/transfers" && request.method === "GET") { await this.listFileTransfers(url, response); return; }
+    if (url.pathname === "/api/v1/files/transfers" && request.method === "POST") { await this.createFileTransfer(request, response, session); return; }
+    const transferAction = url.pathname.match(/^\/api\/v1\/files\/transfers\/([^/]+)(?:\/(pause|resume|cancel|retry))?$/);
+    if (request.method === "GET" && transferAction?.[1] && !transferAction[2]) { await this.getFileTransfer(response, transferAction[1]); return; }
+    if (request.method === "POST" && transferAction?.[1] && transferAction[2]) { await this.controlFileTransfer(request, response, transferAction[1], transferAction[2] as "pause" | "resume" | "cancel" | "retry", session); return; }
+    const filePath = url.pathname.match(/^\/api\/v1\/files\/devices\/([^/]+)\/roots$/);
+    if (request.method === "GET" && filePath?.[1]) { await this.getFileRoots(response, filePath[1]); return; }
+    const fileListPath = url.pathname.match(/^\/api\/v1\/files\/devices\/([^/]+)\/roots\/([^/]+)\/list$/);
+    if (request.method === "GET" && fileListPath?.[1] && fileListPath[2]) { await this.listDeviceFiles(url, response, fileListPath[1], fileListPath[2]); return; }
+    const fileStatPath = url.pathname.match(/^\/api\/v1\/files\/devices\/([^/]+)\/roots\/([^/]+)\/stat$/);
+    if (request.method === "GET" && fileStatPath?.[1] && fileStatPath[2]) { await this.statDeviceFile(url, response, fileStatPath[1], fileStatPath[2]); return; }
+    const fileOperationPath = url.pathname.match(/^\/api\/v1\/files\/devices\/([^/]+)\/operations$/);
+    if (request.method === "POST" && fileOperationPath?.[1]) { await this.createFileOperation(request, response, session, fileOperationPath[1]); return; }
     if (url.pathname === "/api/v1/pairing/requests" && request.method === "GET") { await this.listPairing(response); return; }
     const pairingAction = url.pathname.match(/^\/api\/v1\/pairing\/requests\/([^/]+)\/(approve|reject)$/);
     if (request.method === "POST" && pairingAction?.[1] && pairingAction[2]) {
@@ -263,6 +287,111 @@ export class HubHttpServer {
     catch (error) { sendJson(response, 400, { error: error instanceof Error ? error.message : "Unable to configure provider" }); }
   }
 
+  private async listFileTransfers(url: URL, response: ServerResponse): Promise<void> {
+    if (!this.options.fileTransfers) { sendJson(response, 503, { error: "File transfer service is unavailable" }); return; }
+    const deviceId = url.searchParams.get("deviceId");
+    if (!deviceId) { sendJson(response, 400, { error: "deviceId is required" }); return; }
+    sendJson(response, 200, (await this.options.fileTransfers.listByDevice(deviceId)).map(viewFileTransfer));
+  }
+
+  private async getFileRoots(response: ServerResponse, deviceId: string): Promise<void> {
+    if (!this.options.fileGateway) { sendJson(response, 503, { error: "File gateway is unavailable" }); return; }
+    try { sendJson(response, 200, { roots: await this.options.fileGateway.roots(deviceId) }); }
+    catch (error) { sendJson(response, 502, { error: error instanceof Error ? error.message : "Unable to read device roots" }); }
+  }
+
+  private async listDeviceFiles(url: URL, response: ServerResponse, deviceId: string, rootId: string): Promise<void> {
+    if (!this.options.fileGateway) { sendJson(response, 503, { error: "File gateway is unavailable" }); return; }
+    const path = url.searchParams.get("path") ?? ".";
+    try { sendJson(response, 200, { rootId, path, items: await this.options.fileGateway.list(deviceId, rootId, path) }); }
+    catch (error) { sendJson(response, 502, { error: error instanceof Error ? error.message : "Unable to list device files" }); }
+  }
+
+  private async statDeviceFile(url: URL, response: ServerResponse, deviceId: string, rootId: string): Promise<void> {
+    if (!this.options.fileGateway) { sendJson(response, 503, { error: "File gateway is unavailable" }); return; }
+    const path = url.searchParams.get("path") ?? ".";
+    try { sendJson(response, 200, await this.options.fileGateway.stat(deviceId, rootId, path)); }
+    catch (error) { sendJson(response, 502, { error: error instanceof Error ? error.message : "Unable to stat device file" }); }
+  }
+
+  private async createFileOperation(request: IncomingMessage, response: ServerResponse, session: { csrfToken: string }, deviceId: string): Promise<void> {
+    if (!this.options.fileGateway) { sendJson(response, 503, { error: "File gateway is unavailable" }); return; }
+    if (!this.options.sessions.csrfValid(request, session)) { sendJson(response, 403, { error: "Invalid CSRF token" }); return; }
+    const body = await readJson(request);
+    if (!body?.operation || typeof body.operation !== "object") { sendJson(response, 400, { error: "operation is required" }); return; }
+    let operation;
+    try {
+      operation = FileOperationSchema.parse({ ...body.operation, operationId: typeof (body.operation as { operationId?: unknown }).operationId === "string" ? (body.operation as { operationId: string }).operationId : randomUUID(), deviceId });
+    } catch (error) {
+      sendJson(response, 400, { error: error instanceof Error ? error.message : "Invalid file operation" });
+      return;
+    }
+    try {
+      sendJson(response, 202, await this.options.fileGateway.operation(deviceId, operation));
+    } catch (error) { sendJson(response, 502, { error: error instanceof Error ? error.message : "Unable to execute file operation" }); }
+  }
+
+  private async getFileTransfer(response: ServerResponse, transferId: string): Promise<void> {
+    if (!this.options.fileTransfers) { sendJson(response, 503, { error: "File transfer service is unavailable" }); return; }
+    const record = await this.options.fileTransfers.get(transferId);
+    sendJson(response, record ? 200 : 404, record ? viewFileTransfer(record) : { error: "Transfer not found" });
+  }
+
+  private async createFileTransfer(request: IncomingMessage, response: ServerResponse, session: { actorId: string; csrfToken: string }): Promise<void> {
+    if (!this.options.fileTransfers) { sendJson(response, 503, { error: "File transfer service is unavailable" }); return; }
+    if (!this.options.sessions.csrfValid(request, session)) { sendJson(response, 403, { error: "Invalid CSRF token" }); return; }
+    const body = await readJson(request);
+    if (!body) { sendJson(response, 400, { error: "A valid JSON body is required" }); return; }
+    try {
+      await this.assertTransferDevicesOnline(body.sourceDeviceId, body.destinationDeviceId);
+      const record = await this.options.fileTransfers.create({
+        actorId: session.actorId,
+        sourceDeviceId: requireString(body.sourceDeviceId, "sourceDeviceId"),
+        destinationDeviceId: requireString(body.destinationDeviceId, "destinationDeviceId"),
+        sourceRootId: requireString(body.sourceRootId, "sourceRootId"),
+        sourcePath: requireString(body.sourcePath, "sourcePath"),
+        destinationRootId: requireString(body.destinationRootId, "destinationRootId"),
+        destinationPath: requireString(body.destinationPath, "destinationPath"),
+        operation: body.operation === "move" ? "move" : "copy",
+        items: Array.isArray(body.items) ? body.items as never[] : [],
+        totalBytes: requireNumber(body.totalBytes, "totalBytes"),
+        mode: body.mode === "direct" ? "direct" : "hub-mediated",
+        conflictPolicy: body.conflictPolicy === "overwrite" || body.conflictPolicy === "skip" || body.conflictPolicy === "rename" || body.conflictPolicy === "resume" || body.conflictPolicy === "fail" ? body.conflictPolicy : "ask",
+        manifestDigest: requireString(body.manifestDigest, "manifestDigest"),
+        ...(typeof request.headers["idempotency-key"] === "string" ? { idempotencyKey: request.headers["idempotency-key"] } : {}),
+      });
+      this.events.publish({ id: randomUUID(), type: "file.transfer.created", data: viewFileTransfer(record) });
+      const tokens = this.options.fileTransferTokens ? {
+        source: this.options.fileTransferTokens.issue(record, record.job.sourceDeviceId).token,
+        destination: this.options.fileTransferTokens.issue(record, record.job.destinationDeviceId).token,
+      } : undefined;
+      this.options.transferRouter?.registerBinaryRoute(record.job.transferId, record.job.sourceDeviceId, record.job.destinationDeviceId);
+      if (this.options.transferCoordinator) {
+        void this.options.transferCoordinator.start(record, tokens).catch(() => undefined);
+      }
+      sendJson(response, 201, { ...viewFileTransfer(record), ...(tokens ? { connectorTokens: tokens } : {}) });
+    } catch (error) { sendJson(response, error instanceof Error && error.name === "FileTransferDeviceError" ? 409 : 400, { error: error instanceof Error ? error.message : "Invalid file transfer" }); }
+  }
+
+  private async assertTransferDevicesOnline(sourceDeviceId: unknown, destinationDeviceId: unknown): Promise<void> {
+    if (!this.readModel.getDevice || typeof sourceDeviceId !== "string" || typeof destinationDeviceId !== "string") return;
+    const [source, destination] = await Promise.all([this.readModel.getDevice(sourceDeviceId), this.readModel.getDevice(destinationDeviceId)]);
+    if (!source || source.status !== "online") throw new FileTransferDeviceError("Source device is not online or authorized");
+    if (!destination || destination.status !== "online") throw new FileTransferDeviceError("Destination device is not online or authorized");
+  }
+
+  private async controlFileTransfer(request: IncomingMessage, response: ServerResponse, transferId: string, action: "pause" | "resume" | "cancel" | "retry", session: { csrfToken: string }): Promise<void> {
+    if (!this.options.fileTransfers) { sendJson(response, 503, { error: "File transfer service is unavailable" }); return; }
+    if (!this.options.sessions.csrfValid(request, session)) { sendJson(response, 403, { error: "Invalid CSRF token" }); return; }
+    try {
+      const record = action === "pause" ? await this.options.fileTransfers.pause(transferId) : action === "resume" ? await this.options.fileTransfers.resume(transferId) : action === "retry" ? await this.options.fileTransfers.retry(transferId) : await this.options.fileTransfers.cancel(transferId);
+      await this.options.transferCoordinator?.control(record, action);
+      if (["cancelled", "completed", "failed", "expired"].includes(record.job.state)) this.options.transferRouter?.unregisterBinaryRoute(transferId);
+      this.events.publish({ id: randomUUID(), type: "file.transfer.updated", data: viewFileTransfer(record) });
+      sendJson(response, 200, viewFileTransfer(record));
+    } catch (error) { sendJson(response, error instanceof Error && error.name === "FileTransferStateError" ? 409 : 400, { error: error instanceof Error ? error.message : "Unable to control transfer" }); }
+  }
+
   private async listPairing(response: ServerResponse): Promise<void> {
     if (!this.options.pairing) { sendJson(response, 503, { error: "Pairing service is unavailable" }); return; }
     sendJson(response, 200, await this.options.pairing.listPending());
@@ -329,6 +458,24 @@ function isPrivateIpv4(address: string): boolean {
 
 function viewCommand(record: CommandRecord): Record<string, unknown> {
   return { id: record.command.id, deviceId: record.command.deviceId, type: record.command.type, state: record.state, createdAt: record.createdAt.toISOString(), expiresAt: record.expiresAt.toISOString(), confirmedAt: record.confirmedAt?.toISOString() ?? null, completedAt: record.completedAt?.toISOString() ?? null, error: record.error ?? null };
+}
+
+function viewFileTransfer(record: FileTransferRecord): Record<string, unknown> {
+  return { ...record.job, actorId: record.actorId, error: record.error ?? null };
+}
+
+function requireString(value: unknown, field: string): string {
+  if (typeof value !== "string" || value.trim().length === 0) throw new Error(`${field} is required`);
+  return value;
+}
+
+function requireNumber(value: unknown, field: string): number {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) throw new Error(`${field} must be a non-negative integer`);
+  return value;
+}
+
+class FileTransferDeviceError extends Error {
+  public constructor(message: string) { super(message); this.name = "FileTransferDeviceError"; }
 }
 
 function sendJson(response: ServerResponse, status: number, body: unknown): void {

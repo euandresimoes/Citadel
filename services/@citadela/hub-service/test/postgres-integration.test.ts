@@ -6,6 +6,7 @@ import { createPostgresCommandPool, PostgresCommandRepository } from "../src/ind
 import type { CommandRecord } from "../src/index.js";
 import { HubRuntime, LocalSessionManager } from "../src/index.js";
 import { NetworkProviderManager, PostgresProviderRepository } from "../src/network/provider-manager.js";
+import { PostgresFileTransferRepository, type FileTransferRecord } from "../src/index.js";
 
 const databaseUrl = process.env.CITADELA_TEST_DATABASE_URL;
 
@@ -48,6 +49,33 @@ describe("PostgreSQL integration", () => {
       await command.save(record);
       await expect(command.get(record.command.id)).resolves.toMatchObject({ command: record.command, actorId: record.actorId });
 
+      const transfer: FileTransferRecord = {
+        actorId: "integration-user",
+        job: {
+          transferId: randomUUID(),
+          sourceDeviceId: request.deviceId,
+          destinationDeviceId: request.deviceId,
+          sourceRootId: "root-source",
+          sourcePath: "workspace/source.txt",
+          destinationRootId: "root-destination",
+          destinationPath: "workspace/destination.txt",
+          operation: "copy",
+          items: [],
+          totalBytes: 0,
+          completedBytes: 0,
+          mode: "hub-mediated",
+          conflictPolicy: "ask",
+          state: "created",
+          retryCount: 0,
+          manifestDigest: "b".repeat(64),
+          createdAt: new Date().toISOString(),
+          expiresAt: new Date(Date.now() + 60_000).toISOString(),
+        },
+      };
+      const transfers = new PostgresFileTransferRepository(hubPool);
+      await transfers.save(transfer);
+      await expect(transfers.get(transfer.job.transferId)).resolves.toMatchObject({ job: transfer.job, actorId: transfer.actorId });
+
       const runtime = new HubRuntime({
         apiPort: 0,
         realtimePort: 0,
@@ -61,6 +89,14 @@ describe("PostgreSQL integration", () => {
       expect(runtime.api.port()).toBeGreaterThan(0);
       expect(runtime.realtime.port()).toBeGreaterThan(0);
       await runtime.close();
+
+      const restartedPool = createPostgresCommandPool(databaseUrl as string);
+      try {
+        const restoredTransfers = new PostgresFileTransferRepository(restartedPool);
+        await expect(restoredTransfers.get(transfer.job.transferId)).resolves.toMatchObject({ job: transfer.job, actorId: transfer.actorId });
+      } finally {
+        await restartedPool.end();
+      }
     } finally {
       await hubPool.end();
       await pool.end();

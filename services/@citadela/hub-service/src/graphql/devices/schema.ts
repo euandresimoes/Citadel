@@ -10,6 +10,7 @@ export const typeDefs = `#graphql
     metrics: SystemMetrics
     capabilities: [String!]!
     permissions: [String!]!
+    hostRole: String!
   }
 
   type SystemMetrics { cpuLoadPercent: Float! memoryUsedBytes: Float! memoryTotalBytes: Float! collectedAt: String! }

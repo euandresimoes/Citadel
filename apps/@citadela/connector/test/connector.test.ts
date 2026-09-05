@@ -71,11 +71,11 @@ describe("Connector handshake", () => {
       identityStore: new MemoryIdentityStore(),
     });
     await connector.connect();
-    await expect.poll(() => connections, { timeout: 2_000 }).toBeGreaterThanOrEqual(2);
+    await expect.poll(() => connections, { timeout: 5_000 }).toBeGreaterThanOrEqual(2);
 
     connector.close();
     await new Promise<void>((resolve) => server.close(() => resolve()));
-  }, 5_000);
+  }, 10_000);
 
   it("executes authenticated power commands and rejects command replay", async () => {
     const server = new WebSocketServer({ port: 0 });

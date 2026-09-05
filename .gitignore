@@ -8,5 +8,6 @@ coverage/
 *.log
 
 # Local Files
+.citadela/
 docs/RULES.md
 DESIGN.md

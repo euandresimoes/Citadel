@@ -8,6 +8,10 @@ export const PermissionSchema = z.enum([
   "permission.system.power.sleep",
   "permission.system.power.wake",
   "permission.system.terminal.use",
+  "permission.filesystem.list",
+  "permission.filesystem.read",
+  "permission.filesystem.write",
+  "permission.filesystem.delete",
 ]);
 
 export type Permission = z.infer<typeof PermissionSchema>;
@@ -26,6 +30,8 @@ export const PERMISSIONS_BY_LEVEL: Record<PermissionLevel, Permission[]> = {
     "permission.system.power.restart",
     "permission.system.power.shutdown",
     "permission.system.power.sleep",
+    "permission.filesystem.list",
+    "permission.filesystem.read",
   ],
   "full-control": [
     "permission.system.info.read",
@@ -35,5 +41,9 @@ export const PERMISSIONS_BY_LEVEL: Record<PermissionLevel, Permission[]> = {
     "permission.system.power.sleep",
     "permission.system.power.wake",
     "permission.system.terminal.use",
+    "permission.filesystem.list",
+    "permission.filesystem.read",
+    "permission.filesystem.write",
+    "permission.filesystem.delete",
   ],
 };

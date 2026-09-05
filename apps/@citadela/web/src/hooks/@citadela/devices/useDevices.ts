@@ -5,6 +5,7 @@ export interface Device {
   id: string;
   status: "online" | "offline";
   networkMode: string;
+  hostRole: "standalone" | "hub-host";
   connectionId: string;
   connectedAt: string;
   lastHeartbeat: string;
@@ -28,10 +29,10 @@ interface DevicesQueryData {
   devices: Device[];
 }
 
-const devicesQuery = `query Devices { devices { id status networkMode connectionId connectedAt lastHeartbeat capabilities permissions systemInfo { hostname platform architecture cpuCount memoryBytes uptimeSeconds } metrics { cpuLoadPercent memoryUsedBytes memoryTotalBytes collectedAt } } }`;
+const devicesQuery = `query Devices { devices { id status networkMode hostRole connectionId connectedAt lastHeartbeat capabilities permissions systemInfo { hostname platform architecture cpuCount memoryBytes uptimeSeconds } metrics { cpuLoadPercent memoryUsedBytes memoryTotalBytes collectedAt } } }`;
 
 export async function getDevice(deviceId: string): Promise<Device | null> {
-  const data = await query<{ device: Device | null }>(`query Device($id: ID!) { device(id: $id) { id status networkMode connectionId connectedAt lastHeartbeat capabilities permissions systemInfo { hostname platform architecture cpuCount memoryBytes uptimeSeconds } metrics { cpuLoadPercent memoryUsedBytes memoryTotalBytes collectedAt } } }`, { id: deviceId });
+  const data = await query<{ device: Device | null }>(`query Device($id: ID!) { device(id: $id) { id status networkMode hostRole connectionId connectedAt lastHeartbeat capabilities permissions systemInfo { hostname platform architecture cpuCount memoryBytes uptimeSeconds } metrics { cpuLoadPercent memoryUsedBytes memoryTotalBytes collectedAt } } }`, { id: deviceId });
   return data.device;
 }
 
@@ -40,21 +41,25 @@ export function useDevices() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const hasLoadedRef = useRef(false);
+  const mountedRef = useRef(true);
 
   const refresh = useCallback(async () => {
+    if (!mountedRef.current) return;
     if (!hasLoadedRef.current) setLoading(true);
     setError(null);
     try {
-      setDevices((await query<DevicesQueryData>(devicesQuery)).devices);
+      const nextDevices = (await query<DevicesQueryData>(devicesQuery)).devices;
+      if (mountedRef.current) setDevices(nextDevices);
     } catch (cause) {
-      setError(cause instanceof Error ? cause : new Error("Unable to load devices"));
+      if (mountedRef.current) setError(cause instanceof Error ? cause : new Error("Unable to load devices"));
     } finally {
       hasLoadedRef.current = true;
-      setLoading(false);
+      if (mountedRef.current) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
+    mountedRef.current = true;
     const loadHandle = window.setTimeout(() => void refresh(), 0);
     const events = typeof window !== "undefined" && "EventSource" in window ? new EventSource("/api/v1/events") : undefined;
     const refreshFromEvent = () => void refresh();
@@ -62,6 +67,7 @@ export function useDevices() {
     events?.addEventListener("device.disconnected", refreshFromEvent);
     events?.addEventListener("device.metrics.updated", refreshFromEvent);
     return () => {
+      mountedRef.current = false;
       window.clearTimeout(loadHandle);
       events?.removeEventListener("device.connected", refreshFromEvent);
       events?.removeEventListener("device.disconnected", refreshFromEvent);

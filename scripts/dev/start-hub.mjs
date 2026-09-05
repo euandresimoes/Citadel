@@ -7,6 +7,7 @@ const databaseUrl = process.env.CITADELA_DATABASE_URL ?? `postgresql://citadela:
 const encryptionKey = Buffer.from(process.env.CITADELA_PROFILE_KEY ?? "citadela-dev-key-32-bytes-long!!");
 if (encryptionKey.length !== 32) throw new Error("CITADELA_PROFILE_KEY must be exactly 32 bytes");
 const runtime = new HubRuntime({
+  host: process.env.CITADELA_BIND_HOST ?? "0.0.0.0",
   apiPort: Number(process.env.CITADELA_API_PORT ?? 4174),
   realtimePort: Number(process.env.CITADELA_REALTIME_PORT ?? 4175),
   sessions: new LocalSessionManager({ verifyPassword: () => false }),

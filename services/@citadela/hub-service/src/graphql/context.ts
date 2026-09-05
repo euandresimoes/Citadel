@@ -13,6 +13,7 @@ export interface HubDevice {
   metrics?: SystemMetrics;
   capabilities: Capability[];
   permissions: Permission[];
+  hostRole: "standalone" | "hub-host";
 }
 
 export interface HubReadModel {
@@ -31,8 +32,9 @@ export interface HubSessionSource {
   metrics?: SystemMetrics;
   capabilities?: Capability[];
   permissions?: Permission[];
+  hostRole?: "standalone" | "hub-host";
   }>;
-  getSession?(deviceId: string): { deviceId: string; networkMode: string; connectionId: string; connectedAt: Date; lastHeartbeat: Date; systemInfo?: SystemInfo; metrics?: SystemMetrics; capabilities?: Capability[]; permissions?: Permission[] } | undefined;
+  getSession?(deviceId: string): { deviceId: string; networkMode: string; connectionId: string; connectedAt: Date; lastHeartbeat: Date; systemInfo?: SystemInfo; metrics?: SystemMetrics; capabilities?: Capability[]; permissions?: Permission[]; hostRole?: "standalone" | "hub-host" } | undefined;
 }
 
 export class RealtimeDeviceDirectory implements HubReadModel {
@@ -48,7 +50,7 @@ export class RealtimeDeviceDirectory implements HubReadModel {
       status: "online",
       ...(session.systemInfo ? { systemInfo: session.systemInfo } : {}),
       ...(session.metrics ? { metrics: session.metrics } : {}),
-      capabilities: session.capabilities ?? [], permissions: session.permissions ?? [],
+      capabilities: session.capabilities ?? [], permissions: session.permissions ?? [], hostRole: session.hostRole ?? "standalone",
       ...(session.metrics ? { metrics: session.metrics } : {}),
     }));
   }
@@ -64,7 +66,7 @@ export class RealtimeDeviceDirectory implements HubReadModel {
       lastHeartbeat: session.lastHeartbeat.toISOString(),
       status: "online",
       ...(session.systemInfo ? { systemInfo: session.systemInfo } : {}),
-      capabilities: session.capabilities ?? [], permissions: session.permissions ?? [],
+      capabilities: session.capabilities ?? [], permissions: session.permissions ?? [], hostRole: session.hostRole ?? "standalone",
     };
   }
 }
@@ -94,7 +96,7 @@ function deviceView(record: DeviceRecord, active: ReturnType<NonNullable<HubSess
     status: active ? "online" : record.status,
     ...(active?.systemInfo ? { systemInfo: active.systemInfo } : record.systemInfo ? { systemInfo: record.systemInfo } : {}),
     ...(active?.metrics ? { metrics: active.metrics } : record.metrics ? { metrics: record.metrics } : {}),
-    capabilities: active?.capabilities ?? record.capabilities ?? [], permissions: active?.permissions ?? record.permissions ?? [],
+    capabilities: active?.capabilities ?? record.capabilities ?? [], permissions: active?.permissions ?? record.permissions ?? [], hostRole: record.hostRole ?? "standalone",
   };
 }
 

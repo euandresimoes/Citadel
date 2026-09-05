@@ -8,6 +8,7 @@
     "dev:prepare": "node scripts/dev/prepare.mjs",
     "dev:hub": "node scripts/dev/start-hub.mjs",
     "dev:web": "pnpm --dir apps/@citadela/web exec vite --host 0.0.0.0 --port 5173",
+    "dev:local-device": "node scripts/dev/start-local-device.mjs",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r build && pnpm -r typecheck",
     "test": "pnpm -r test"

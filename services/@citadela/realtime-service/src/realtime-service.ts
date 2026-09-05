@@ -24,6 +24,7 @@ export interface RealtimeServiceOptions {
   pairing: PairingAuthorizer;
   tls?: { key: string | Buffer; cert: string | Buffer };
   onMessage?: (deviceId: string, message: CitadelaMessage) => void;
+  onBinaryMessage?: (deviceId: string, payload: Buffer) => void;
   onSessionEvent?: SessionEventListener;
   deviceRegistry?: DeviceRegistry;
   metricsIntervalMs?: number;
@@ -41,6 +42,7 @@ export interface DeviceSession {
   metrics?: SystemMetrics;
   capabilities: DeviceHelloMessage["device"]["capabilities"];
   permissions: DeviceHelloMessage["device"]["permissions"];
+  hostRole: DeviceHelloMessage["device"]["hostRole"];
 }
 
 export type SessionEvent =
@@ -57,13 +59,16 @@ export class RealtimeService {
   private readonly sessionEventListeners = new Set<SessionEventListener>();
   private readonly pairing: PairingAuthorizer;
   private readonly onMessage: RealtimeServiceOptions["onMessage"];
+  private readonly onBinaryMessage: RealtimeServiceOptions["onBinaryMessage"];
   private readonly onSessionEvent: RealtimeServiceOptions["onSessionEvent"];
   private readonly deviceRegistry: DeviceRegistry | undefined;
   private readonly metricsInterval: NodeJS.Timeout;
+  private readonly binaryRoutes = new Map<string, { sourceDeviceId: string; destinationDeviceId: string }>();
 
   public constructor(options: RealtimeServiceOptions) {
     this.pairing = options.pairing;
     this.onMessage = options.onMessage;
+    this.onBinaryMessage = options.onBinaryMessage;
     this.onSessionEvent = options.onSessionEvent;
     this.deviceRegistry = options.deviceRegistry;
     this.metricsInterval = setInterval(() => { for (const session of this.sessions.values()) this.requestMetrics(session.deviceId); }, Math.max(10_000, options.metricsIntervalMs ?? 30_000));
@@ -128,6 +133,27 @@ export class RealtimeService {
     return true;
   }
 
+  public sendBinary(deviceId: string, payload: Uint8Array): boolean {
+    const session = this.sessions.get(deviceId);
+    if (!session || session.socket.readyState !== WebSocket.OPEN) return false;
+    session.socket.send(payload);
+    return true;
+  }
+
+  public sendMessage(deviceId: string, message: CitadelaMessage): boolean {
+    const session = this.sessions.get(deviceId);
+    if (!session || session.socket.readyState !== WebSocket.OPEN) return false;
+    session.socket.send(JSON.stringify(message));
+    return true;
+  }
+
+  public registerBinaryRoute(transferId: string, sourceDeviceId: string, destinationDeviceId: string): void {
+    if (!transferId || sourceDeviceId === destinationDeviceId) throw new Error("A binary transfer route requires distinct devices");
+    this.binaryRoutes.set(transferId, { sourceDeviceId, destinationDeviceId });
+  }
+
+  public unregisterBinaryRoute(transferId: string): void { this.binaryRoutes.delete(transferId); }
+
   public requestSystemInfo(deviceId: string): boolean {
     return this.sendCommand(deviceId, { id: randomUUID(), type: "device.system.info.request", deviceId });
   }
@@ -153,7 +179,18 @@ export class RealtimeService {
       if (!handshaken) socket.close(1008, "Handshake timeout");
     }, 5_000);
 
-    socket.on("message", async (raw) => {
+    socket.on("message", async (raw, isBinary) => {
+      if (isBinary) {
+        const activeSession = [...this.sessions.values()].find((session) => session.socket === socket);
+        if (activeSession && authenticated) {
+          const payload = rawToBuffer(raw);
+          this.onBinaryMessage?.(activeSession.deviceId, payload);
+          const transferId = payload.byteLength >= 4 ? extractTransferId(payload) : undefined;
+          const route = transferId ? this.binaryRoutes.get(transferId) : undefined;
+          if (route?.sourceDeviceId === activeSession.deviceId) this.sendBinary(route.destinationDeviceId, payload);
+        }
+        return;
+      }
       let message: unknown;
       try {
         message = JSON.parse(raw.toString());
@@ -289,9 +326,10 @@ export class RealtimeService {
       socket,
       capabilities: hello.device.capabilities,
       permissions: hello.device.permissions,
+      hostRole: hello.device.hostRole,
     };
     this.sessions.set(hello.deviceId, session);
-    void this.deviceRegistry?.upsertConnected(hello.deviceId, hello.identity, hello.networkMode, hello.connectionId, session.connectedAt, hello.device.capabilities, hello.device.permissions);
+    void this.deviceRegistry?.upsertConnected(hello.deviceId, hello.identity, hello.networkMode, hello.connectionId, session.connectedAt, hello.device.capabilities, hello.device.permissions, hello.device.hostRole);
     this.emitSessionEvent({ type: "device.connected", session });
     socket.send(JSON.stringify({
       type: "hub.hello",
@@ -314,4 +352,20 @@ export class RealtimeService {
     this.onSessionEvent?.(event);
     for (const listener of this.sessionEventListeners) listener(event);
   }
+}
+
+function rawToBuffer(raw: Buffer | ArrayBuffer | Buffer[] | Uint8Array): Buffer {
+  if (Buffer.isBuffer(raw)) return raw;
+  if (raw instanceof ArrayBuffer) return Buffer.from(raw);
+  if (Array.isArray(raw)) return Buffer.concat(raw.map((part) => Buffer.from(part)));
+  return Buffer.from(raw);
+}
+
+function extractTransferId(payload: Buffer): string | undefined {
+  try {
+    const headerLength = payload.readUInt32BE(0);
+    if (headerLength <= 0 || headerLength > 8 * 1024 || payload.length < headerLength + 4) return undefined;
+    const header = JSON.parse(payload.subarray(4, 4 + headerLength).toString("utf8")) as { transferId?: unknown };
+    return typeof header.transferId === "string" ? header.transferId : undefined;
+  } catch { return undefined; }
 }

@@ -100,6 +100,7 @@ describe("HubCommandService", () => {
       status: "online",
       capabilities: [],
       permissions: [],
+      hostRole: "standalone",
     }]);
   });
 });
